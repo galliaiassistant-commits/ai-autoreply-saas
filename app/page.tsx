@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useUser, SignInButton, UserButton } from "@clerk/nextjs"
+import { supabase } from "./lib/supabase"
 
 type Chat = {
   role: "user" | "ai"
@@ -9,18 +10,43 @@ type Chat = {
 }
 
 export default function Home() {
-  const { isSignedIn } = useUser()
+  const { user, isSignedIn } = useUser()
 
   const [message, setMessage] = useState("")
   const [chat, setChat] = useState<Chat[]>([])
   const [loading, setLoading] = useState(false)
 
+  // Load chat history from Supabase
+  useEffect(() => {
+    const loadChats = async () => {
+      if (!user?.id) return
+
+      const { data, error } = await supabase
+        .from("chats")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true })
+
+      if (data && !error) {
+        setChat(
+          data.map((c) => ({
+            role: c.role,
+            content: c.content,
+          }))
+        )
+      }
+    }
+
+    loadChats()
+  }, [user])
+
   const sendMessage = async () => {
-    if (!message.trim()) return
+    if (!message.trim() || !user?.id) return
 
     const userMessage = message
     setMessage("")
 
+    // show instantly in UI
     setChat((prev) => [
       ...prev,
       { role: "user", content: userMessage },
@@ -39,14 +65,29 @@ export default function Home() {
 
       const data = await res.json()
 
+      // add AI message
       setChat((prev) => [
         ...prev,
         { role: "ai", content: data.reply },
       ])
-    } catch (error: any) {
+
+      // SAVE USER MESSAGE
+      await supabase.from("chats").insert({
+        user_id: user.id,
+        role: "user",
+        content: userMessage,
+      })
+
+      // SAVE AI MESSAGE
+      await supabase.from("chats").insert({
+        user_id: user.id,
+        role: "ai",
+        content: data.reply,
+      })
+    } catch (err: any) {
       setChat((prev) => [
         ...prev,
-        { role: "ai", content: "Error: " + error.message },
+        { role: "ai", content: "Error: " + err.message },
       ])
     }
 
@@ -64,7 +105,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* AUTH */}
         <div>
           {!isSignedIn ? <SignInButton /> : <UserButton />}
         </div>
@@ -103,7 +143,7 @@ export default function Home() {
           ))
         )}
 
-        {loading && isSignedIn && (
+        {loading && (
           <div style={styles.typing}>
             GalliAssist is typing...
           </div>
@@ -148,7 +188,6 @@ const styles: any = {
     color: "white",
     fontFamily: "Arial",
   },
-
   header: {
     padding: 15,
     borderBottom: "1px solid #1e293b",
@@ -156,54 +195,43 @@ const styles: any = {
     justifyContent: "space-between",
     alignItems: "center",
   },
-
   logo: {
     fontSize: 18,
     fontWeight: "bold",
   },
-
   subtitle: {
     fontSize: 12,
     color: "#94a3b8",
   },
-
   chatBox: {
     flex: 1,
     padding: 20,
     overflowY: "auto",
   },
-
   messageRow: {
     display: "flex",
     marginBottom: 10,
   },
-
   message: {
     padding: "10px 14px",
     borderRadius: 12,
     maxWidth: "70%",
   },
-
   typing: {
-    backgroundColor: "#1e293b",
-    padding: "10px 14px",
-    borderRadius: 12,
+    padding: 10,
     opacity: 0.7,
   },
-
   locked: {
     textAlign: "center",
     marginTop: 100,
     color: "#94a3b8",
   },
-
   inputBar: {
     display: "flex",
     padding: 15,
     borderTop: "1px solid #1e293b",
     gap: 10,
   },
-
   input: {
     flex: 1,
     padding: 12,
@@ -212,7 +240,6 @@ const styles: any = {
     backgroundColor: "#1e293b",
     color: "white",
   },
-
   button: {
     padding: "12px 16px",
     borderRadius: 10,
