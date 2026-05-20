@@ -1,9 +1,8 @@
-import type { Metadata } from "next"
-import { ClerkProvider } from "@clerk/nextjs"
+import "./globals.css"
 
-export const metadata: Metadata = {
-  title: "GalliAssist AI",
-  description: "AI business assistant",
+export const metadata = {
+  title: "AI Auto Reply",
+  description: "AI assistant",
 }
 
 export default function RootLayout({
@@ -12,10 +11,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <body>{children}</body>
-      </html>
-    </ClerkProvider>
+    <html lang="en">
+      <body>{children}</body>
+    </html>
   )
 }
