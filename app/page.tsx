@@ -1,7 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useUser, SignInButton, UserButton } from "@clerk/nextjs"
+import { useState } from "react"
 import { supabase } from "./lib/supabase"
 
 type Chat = {
@@ -10,38 +9,12 @@ type Chat = {
 }
 
 export default function Home() {
-  const { user, isSignedIn } = useUser()
-
   const [message, setMessage] = useState("")
   const [chat, setChat] = useState<Chat[]>([])
   const [loading, setLoading] = useState(false)
 
-  // Load chat history from Supabase
-  useEffect(() => {
-    const loadChats = async () => {
-      if (!user?.id) return
-
-      const { data, error } = await supabase
-        .from("chats")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true })
-
-      if (data && !error) {
-        setChat(
-          data.map((c) => ({
-            role: c.role,
-            content: c.content,
-          }))
-        )
-      }
-    }
-
-    loadChats()
-  }, [user])
-
   const sendMessage = async () => {
-    if (!message.trim() || !user?.id) return
+    if (!message.trim()) return
 
     const userMessage = message
     setMessage("")
@@ -71,16 +44,13 @@ export default function Home() {
         { role: "ai", content: data.reply },
       ])
 
-      // SAVE USER MESSAGE
+      // OPTIONAL SAVE TO SUPABASE
       await supabase.from("chats").insert({
-        user_id: user.id,
         role: "user",
         content: userMessage,
       })
 
-      // SAVE AI MESSAGE
       await supabase.from("chats").insert({
-        user_id: user.id,
         role: "ai",
         content: data.reply,
       })
@@ -100,48 +70,45 @@ export default function Home() {
       <div style={styles.header}>
         <div>
           <div style={styles.logo}>🤖 GalliAssist AI</div>
+
           <div style={styles.subtitle}>
             Business auto-reply assistant
           </div>
-        </div>
-
-        <div>
-          {!isSignedIn ? <SignInButton /> : <UserButton />}
         </div>
       </div>
 
       {/* CHAT */}
       <div style={styles.chatBox}>
-        {!isSignedIn ? (
-          <div style={styles.locked}>
-            Please sign in to use the AI
+        {chat.length === 0 && (
+          <div style={styles.empty}>
+            Start chatting with GalliAssist AI
           </div>
-        ) : (
-          chat.map((msg, i) => (
+        )}
+
+        {chat.map((msg, i) => (
+          <div
+            key={i}
+            style={{
+              ...styles.messageRow,
+              justifyContent:
+                msg.role === "user"
+                  ? "flex-end"
+                  : "flex-start",
+            }}
+          >
             <div
-              key={i}
               style={{
-                ...styles.messageRow,
-                justifyContent:
+                ...styles.message,
+                backgroundColor:
                   msg.role === "user"
-                    ? "flex-end"
-                    : "flex-start",
+                    ? "#2563eb"
+                    : "#1e293b",
               }}
             >
-              <div
-                style={{
-                  ...styles.message,
-                  backgroundColor:
-                    msg.role === "user"
-                      ? "#2563eb"
-                      : "#1e293b",
-                }}
-              >
-                {msg.content}
-              </div>
+              {msg.content}
             </div>
-          ))
-        )}
+          </div>
+        ))}
 
         {loading && (
           <div style={styles.typing}>
@@ -153,22 +120,16 @@ export default function Home() {
       {/* INPUT */}
       <div style={styles.inputBar}>
         <input
-          disabled={!isSignedIn}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") sendMessage()
           }}
-          placeholder={
-            isSignedIn
-              ? "Message GalliAssist..."
-              : "Sign in to continue"
-          }
+          placeholder="Message GalliAssist..."
           style={styles.input}
         />
 
         <button
-          disabled={!isSignedIn}
           onClick={sendMessage}
           style={styles.button}
         >
@@ -221,7 +182,7 @@ const styles: any = {
     padding: 10,
     opacity: 0.7,
   },
-  locked: {
+  empty: {
     textAlign: "center",
     marginTop: 100,
     color: "#94a3b8",
