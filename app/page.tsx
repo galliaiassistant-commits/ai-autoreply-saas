@@ -1,244 +1,287 @@
 "use client"
 
-import { useState } from "react"
-import { supabase } from "./lib/supabase"
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 
-type Chat = {
-  role: "user" | "ai"
+import ChatInput from "@/components/ChatInput"
+import ChatMessage from "@/components/ChatMessage"
+import Sidebar from "@/components/Sidebar"
+import TypingIndicator from "@/components/TypingIndicator"
+import WelcomeScreen from "@/components/WelcomeScreen"
+
+import { styles } from "@/styles/chat"
+
+type ChatMessageType = {
+  role: "user" | "assistant"
   content: string
 }
 
-export default function Home() {
-  const [message, setMessage] = useState("")
-  const [chat, setChat] = useState<Chat[]>([])
-  const [loading, setLoading] = useState(false)
+type Conversation = {
+  title: string
+  messages: ChatMessageType[]
+}
 
+export default function Home() {
+  const [mounted, setMounted] =
+    useState(false)
+
+  const [message, setMessage] =
+    useState("")
+
+    const [sidebarOpen, setSidebarOpen] =
+  useState(false)
+
+  const [loading, setLoading] =
+    useState(false)
+
+  const [conversations, setConversations] =
+    useState<Conversation[]>([
+      {
+        title: "New Chat",
+        messages: [],
+      },
+    ])
+
+  const [currentChat, setCurrentChat] =
+    useState(0)
+
+  const bottomRef =
+    useRef<HTMLDivElement>(null)
+
+  // FIX HYDRATION
+  useEffect(() => {
+    setMounted(true)
+
+    const savedConversations =
+      localStorage.getItem(
+        "galli-conversations"
+      )
+
+    const savedCurrentChat =
+      localStorage.getItem(
+        "galli-current-chat"
+      )
+
+    if (savedConversations) {
+      setConversations(
+        JSON.parse(savedConversations)
+      )
+    }
+
+    if (savedCurrentChat) {
+      setCurrentChat(
+        Number(savedCurrentChat)
+      )
+    }
+  }, [])
+
+  // SAVE CONVERSATIONS
+  useEffect(() => {
+    if (!mounted) return
+
+    localStorage.setItem(
+      "galli-conversations",
+      JSON.stringify(conversations)
+    )
+  }, [conversations, mounted])
+
+  // SAVE CURRENT CHAT
+  useEffect(() => {
+    if (!mounted) return
+
+    localStorage.setItem(
+      "galli-current-chat",
+      String(currentChat)
+    )
+  }, [currentChat, mounted])
+
+  // AUTO SCROLL
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({
+      behavior: "smooth",
+    })
+  }, [conversations])
+
+  const currentConversation =
+    conversations[currentChat]
+
+  // NEW CHAT
+  const createNewChat = () => {
+    setConversations((prev) => [
+      ...prev,
+      {
+        title: "New Chat",
+        messages: [],
+      },
+    ])
+
+    setCurrentChat(conversations.length)
+  }
+
+  // SEND MESSAGE
   const sendMessage = async () => {
     if (!message.trim()) return
 
     const userMessage = message
+
     setMessage("")
 
-    // ADD USER MESSAGE TO UI
-    const updatedChat = [
-      ...chat,
+    const updatedMessages = [
+      ...currentConversation.messages,
+
       {
         role: "user" as const,
         content: userMessage,
       },
     ]
 
-    setChat(updatedChat)
+    const updatedConversations = [
+      ...conversations,
+    ]
+
+    updatedConversations[currentChat] = {
+      ...currentConversation,
+
+      title:
+        currentConversation.title ===
+        "New Chat"
+          ? userMessage.slice(0, 25)
+          : currentConversation.title,
+
+      messages: updatedMessages,
+    }
+
+    setConversations(updatedConversations)
 
     setLoading(true)
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
+
         headers: {
           "Content-Type": "application/json",
         },
 
-        // SEND MESSAGE + HISTORY
         body: JSON.stringify({
           message: userMessage,
-          history: updatedChat,
+          history: updatedMessages,
         }),
       })
 
-      const data = await res.json()
+      if (!res.body) return
 
-      // ADD AI RESPONSE
-      setChat((prev) => [
-        ...prev,
-        {
-          role: "ai",
-          content: data.reply,
-        },
+      const reader = res.body.getReader()
+
+      const decoder = new TextDecoder()
+
+      let aiResponse = ""
+
+      updatedConversations[
+        currentChat
+      ].messages.push({
+        role: "assistant",
+        content: "",
+      })
+
+      setConversations([
+        ...updatedConversations,
       ])
 
-      // OPTIONAL SAVE TO SUPABASE
-      await supabase.from("chats").insert({
-        role: "user",
-        content: userMessage,
-      })
+      while (true) {
+        const { done, value } =
+          await reader.read()
 
-      await supabase.from("chats").insert({
-        role: "ai",
-        content: data.reply,
-      })
+        if (done) break
+
+        const chunk =
+          decoder.decode(value)
+
+        aiResponse += chunk
+
+        updatedConversations[
+          currentChat
+        ].messages[
+          updatedConversations[
+            currentChat
+          ].messages.length - 1
+        ] = {
+          role: "assistant",
+          content: aiResponse,
+        }
+
+        setConversations([
+          ...updatedConversations,
+        ])
+      }
     } catch (err: any) {
-      setChat((prev) => [
-        ...prev,
-        {
-          role: "ai",
-          content: "Error: " + err.message,
-        },
-      ])
+      console.error(err)
     }
 
     setLoading(false)
   }
 
+  if (!mounted) {
+    return null
+  }
+
   return (
     <div style={styles.page}>
-      {/* HEADER */}
-      <div style={styles.header}>
-        <div>
-          <div style={styles.logo}>
-            🤖 GalliAssist AI
-          </div>
+      <Sidebar
+  chats={conversations.map(
+    (c) => c.title
+  )}
+  currentChat={currentChat}
+  setCurrentChat={setCurrentChat}
+  createNewChat={createNewChat}
+  sidebarOpen={sidebarOpen}
+  setSidebarOpen={setSidebarOpen}
+/>
 
-          <div style={styles.subtitle}>
-            Business auto-reply assistant
-          </div>
+      <div style={styles.main}>
+        <div style={styles.chatArea}>
+          {currentConversation
+            ?.messages.length === 0 && (
+            <WelcomeScreen />
+          )}
+
+<div style={styles.topBar}>
+  <button
+    onClick={() =>
+      setSidebarOpen(true)
+    }
+    style={styles.menuButton}
+  >
+    ☰
+  </button>
+</div>
+
+          {currentConversation?.messages.map(
+            (msg, i) => (
+              <ChatMessage
+                key={i}
+                role={msg.role}
+                content={msg.content}
+              />
+            )
+          )}
+
+          {loading && (
+            <TypingIndicator />
+          )}
+
+          <div ref={bottomRef} />
         </div>
-      </div>
 
-      {/* CHAT */}
-      <div style={styles.chatBox}>
-        {chat.length === 0 && (
-          <div style={styles.empty}>
-            Start chatting with GalliAssist AI
-          </div>
-        )}
-
-        {chat.map((msg, i) => (
-          <div
-            key={i}
-            style={{
-              ...styles.messageRow,
-              justifyContent:
-                msg.role === "user"
-                  ? "flex-end"
-                  : "flex-start",
-            }}
-          >
-            <div
-              style={{
-                ...styles.message,
-                backgroundColor:
-                  msg.role === "user"
-                    ? "#2563eb"
-                    : "#1e293b",
-              }}
-            >
-              {msg.content}
-            </div>
-          </div>
-        ))}
-
-        {loading && (
-          <div style={styles.typing}>
-            GalliAssist is typing...
-          </div>
-        )}
-      </div>
-
-      {/* INPUT */}
-      <div style={styles.inputBar}>
-        <input
-          value={message}
-          onChange={(e) =>
-            setMessage(e.target.value)
-          }
-          onKeyDown={(e) => {
-            if (e.key === "Enter")
-              sendMessage()
-          }}
-          placeholder="Message GalliAssist..."
-          style={styles.input}
+        <ChatInput
+          message={message}
+          setMessage={setMessage}
+          sendMessage={sendMessage}
         />
-
-        <button
-          onClick={sendMessage}
-          style={styles.button}
-        >
-          Send
-        </button>
       </div>
     </div>
   )
-}
-
-const styles: any = {
-  page: {
-    height: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: "#0f172a",
-    color: "white",
-    fontFamily: "Arial",
-  },
-
-  header: {
-    padding: 15,
-    borderBottom: "1px solid #1e293b",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  logo: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-
-  subtitle: {
-    fontSize: 12,
-    color: "#94a3b8",
-  },
-
-  chatBox: {
-    flex: 1,
-    padding: 20,
-    overflowY: "auto",
-  },
-
-  messageRow: {
-    display: "flex",
-    marginBottom: 10,
-  },
-
-  message: {
-    padding: "10px 14px",
-    borderRadius: 12,
-    maxWidth: "70%",
-  },
-
-  typing: {
-    padding: 10,
-    opacity: 0.7,
-  },
-
-  empty: {
-    textAlign: "center",
-    marginTop: 100,
-    color: "#94a3b8",
-  },
-
-  inputBar: {
-    display: "flex",
-    padding: 15,
-    borderTop: "1px solid #1e293b",
-    gap: 10,
-  },
-
-  input: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 10,
-    border: "1px solid #334155",
-    backgroundColor: "#1e293b",
-    color: "white",
-  },
-
-  button: {
-    padding: "12px 16px",
-    borderRadius: 10,
-    backgroundColor: "#2563eb",
-    color: "white",
-    border: "none",
-    cursor: "pointer",
-  },
 }

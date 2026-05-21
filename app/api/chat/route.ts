@@ -1,5 +1,4 @@
 import OpenAI from "openai"
-import { NextResponse } from "next/server"
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -15,26 +14,18 @@ export async function POST(req: Request) {
         content: `
 You are GalliAssist, an advanced AI assistant.
 
-Your personality should feel natural, intelligent, modern, and conversational like ChatGPT.
+Speak naturally, intelligently, and conversationally like ChatGPT.
 
-Rules:
-- Speak naturally and clearly.
-- Give smart and helpful answers.
+- Be helpful and clear.
 - Avoid robotic wording.
-- Be friendly and confident.
 - Adapt to the user's tone.
-- Remember the ongoing conversation.
-- Help with coding, business, productivity, and general questions.
-- Explain things simply when needed.
-- Keep responses concise unless detail is needed.
+- Give modern and concise answers.
 - Never say "As an AI language model".
 `,
       },
 
-      // PREVIOUS CHAT HISTORY
       ...(body.history || []),
 
-      // CURRENT USER MESSAGE
       {
         role: "user",
         content: body.message,
@@ -45,24 +36,37 @@ Rules:
       await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages,
+        stream: true,
         temperature: 0.8,
-        max_tokens: 500,
       })
 
-    return NextResponse.json({
-      reply:
-        completion.choices[0].message.content,
+    const encoder = new TextEncoder()
+
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        for await (const chunk of completion) {
+          const text =
+            chunk.choices[0]?.delta?.content || ""
+
+          controller.enqueue(
+            encoder.encode(text)
+          )
+        }
+
+        controller.close()
+      },
     })
+
+    return new Response(readableStream)
   } catch (error: any) {
     console.error(error)
 
-    return NextResponse.json(
+    return new Response(
+      error?.message ||
+        "Something went wrong",
       {
-        error:
-          error?.message ||
-          "Something went wrong",
-      },
-      { status: 500 }
+        status: 500,
+      }
     )
   }
 }

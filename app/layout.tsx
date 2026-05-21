@@ -2,7 +2,7 @@ import "./globals.css"
 
 export const metadata = {
   title: "AI Auto Reply",
-  description: "AI assistant",
+  description: "Public AI assistant",
 }
 
 export default function RootLayout({
