@@ -19,11 +19,16 @@ export default function Home() {
     const userMessage = message
     setMessage("")
 
-    // show instantly in UI
-    setChat((prev) => [
-      ...prev,
-      { role: "user", content: userMessage },
-    ])
+    // ADD USER MESSAGE TO UI
+    const updatedChat = [
+      ...chat,
+      {
+        role: "user" as const,
+        content: userMessage,
+      },
+    ]
+
+    setChat(updatedChat)
 
     setLoading(true)
 
@@ -33,15 +38,23 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: userMessage }),
+
+        // SEND MESSAGE + HISTORY
+        body: JSON.stringify({
+          message: userMessage,
+          history: updatedChat,
+        }),
       })
 
       const data = await res.json()
 
-      // add AI message
+      // ADD AI RESPONSE
       setChat((prev) => [
         ...prev,
-        { role: "ai", content: data.reply },
+        {
+          role: "ai",
+          content: data.reply,
+        },
       ])
 
       // OPTIONAL SAVE TO SUPABASE
@@ -57,7 +70,10 @@ export default function Home() {
     } catch (err: any) {
       setChat((prev) => [
         ...prev,
-        { role: "ai", content: "Error: " + err.message },
+        {
+          role: "ai",
+          content: "Error: " + err.message,
+        },
       ])
     }
 
@@ -69,7 +85,9 @@ export default function Home() {
       {/* HEADER */}
       <div style={styles.header}>
         <div>
-          <div style={styles.logo}>🤖 GalliAssist AI</div>
+          <div style={styles.logo}>
+            🤖 GalliAssist AI
+          </div>
 
           <div style={styles.subtitle}>
             Business auto-reply assistant
@@ -121,9 +139,12 @@ export default function Home() {
       <div style={styles.inputBar}>
         <input
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) =>
+            setMessage(e.target.value)
+          }
           onKeyDown={(e) => {
-            if (e.key === "Enter") sendMessage()
+            if (e.key === "Enter")
+              sendMessage()
           }}
           placeholder="Message GalliAssist..."
           style={styles.input}
@@ -149,6 +170,7 @@ const styles: any = {
     color: "white",
     fontFamily: "Arial",
   },
+
   header: {
     padding: 15,
     borderBottom: "1px solid #1e293b",
@@ -156,43 +178,52 @@ const styles: any = {
     justifyContent: "space-between",
     alignItems: "center",
   },
+
   logo: {
     fontSize: 18,
     fontWeight: "bold",
   },
+
   subtitle: {
     fontSize: 12,
     color: "#94a3b8",
   },
+
   chatBox: {
     flex: 1,
     padding: 20,
     overflowY: "auto",
   },
+
   messageRow: {
     display: "flex",
     marginBottom: 10,
   },
+
   message: {
     padding: "10px 14px",
     borderRadius: 12,
     maxWidth: "70%",
   },
+
   typing: {
     padding: 10,
     opacity: 0.7,
   },
+
   empty: {
     textAlign: "center",
     marginTop: 100,
     color: "#94a3b8",
   },
+
   inputBar: {
     display: "flex",
     padding: 15,
     borderTop: "1px solid #1e293b",
     gap: 10,
   },
+
   input: {
     flex: 1,
     padding: 12,
@@ -201,6 +232,7 @@ const styles: any = {
     backgroundColor: "#1e293b",
     color: "white",
   },
+
   button: {
     padding: "12px 16px",
     borderRadius: 10,
