@@ -1,26 +1,20 @@
 "use client"
 
-import { useState } from "react"
+import { Bot, User, Copy } from "lucide-react"
 
 import ReactMarkdown from "react-markdown"
 
-import { Prism as SyntaxHighlighter }
-from "react-syntax-highlighter"
-
-import { oneDark }
-from "react-syntax-highlighter/dist/esm/styles/prism"
+import {
+  Prism as SyntaxHighlighter,
+} from "react-syntax-highlighter"
 
 import {
-  Copy,
-  Check,
-  Pencil,
-  Eye,
-  Save,
-  X,
-} from "lucide-react"
+  oneDark,
+} from "react-syntax-highlighter/dist/esm/styles/prism"
 
 type Props = {
   role: "user" | "assistant"
+
   content: string
 }
 
@@ -28,160 +22,154 @@ export default function ChatMessage({
   role,
   content,
 }: Props) {
-  const [copied, setCopied] =
-    useState(false)
+  const isUser =
+    role === "user"
 
-  const [previewMode, setPreviewMode] =
-    useState(true)
-
-  const [editing, setEditing] =
-    useState(false)
-
-  const [editedContent, setEditedContent] =
-    useState(content)
-
-  const copyCode = async (
-    code: string
-  ) => {
-    await navigator.clipboard.writeText(
-      code
+  // COPY MESSAGE
+  const copyMessage = async () => {
+    navigator.clipboard.writeText(
+      content
     )
-
-    setCopied(true)
-
-    setTimeout(() => {
-      setCopied(false)
-    }, 2000)
-  }
-
-  const saveEdit = () => {
-    setEditing(false)
-  }
-
-  const cancelEdit = () => {
-    setEditedContent(content)
-    setEditing(false)
   }
 
   return (
-   <div
-  style={{
-    ...styles.wrapper,
+    <div
+      style={{
+        width: "100%",
 
-    justifyContent:
-      role === "user"
-        ? "flex-end"
-        : "flex-start",
+        display: "flex",
 
-    backgroundColor:
-      role === "assistant"
-        ? "#111827"
-        : "transparent",
-  }}
->
-      <div style={styles.container}>
+        justifyContent:
+          isUser
+            ? "flex-end"
+            : "flex-start",
+
+        marginBottom: 28,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+
+          flexDirection: isUser
+            ? "row-reverse"
+            : "row",
+
+          alignItems: "flex-end",
+
+          gap: 12,
+
+          maxWidth: "80%",
+        }}
+      >
         {/* AVATAR */}
-        <div style={styles.avatar}>
-          {role === "user"
-            ? "🙂"
-            : "🤖"}
+        <div
+          style={{
+            width: 38,
+            height: 38,
+
+            borderRadius: 12,
+
+            backgroundColor:
+              isUser
+                ? "#2563eb"
+                : "#111827",
+
+            display: "flex",
+
+            alignItems: "center",
+
+            justifyContent:
+              "center",
+
+            flexShrink: 0,
+
+            border:
+              "1px solid #1e293b",
+          }}
+        >
+          {isUser ? (
+            <User size={18} />
+          ) : (
+            <Bot size={18} />
+          )}
         </div>
 
-        {/* CONTENT */}
-        <div style={styles.content}>
-          {/* TOOLBAR */}
-          <div style={styles.topBar}>
-            {/* PREVIEW */}
-            <button
-              style={styles.iconButton}
-              onClick={() =>
-                setPreviewMode(
-                  !previewMode
-                )
-              }
-            >
-              {previewMode ? (
-                <>
-                  <Pencil size={15} />
+        {/* MESSAGE */}
+        <div
+          style={{
+            position: "relative",
 
-                  <div
-                    style={styles.tooltip}
-                  >
-                    Edit View
-                  </div>
-                </>
-              ) : (
-                <>
-                  <Eye size={15} />
+            backgroundColor:
+              isUser
+                ? "#2563eb"
+                : "#111827",
 
-                  <div
-                    style={styles.tooltip}
-                  >
-                    Preview
-                  </div>
-                </>
-              )}
-            </button>
+            color: "white",
 
-            {/* EDIT */}
-            {!editing ? (
-              <button
-                style={styles.iconButton}
-                onClick={() =>
-                  setEditing(true)
-                }
-              >
-                <Pencil size={15} />
+            padding:
+              "16px 18px",
 
-                <div
-                  style={styles.tooltip}
-                >
-                  Edit
-                </div>
-              </button>
-            ) : (
-              <>
-                <button
-                  style={styles.iconButton}
-                  onClick={saveEdit}
-                >
-                  <Save size={15} />
+            borderRadius: 20,
 
-                  <div
-                    style={styles.tooltip}
-                  >
-                    Save
-                  </div>
-                </button>
+            lineHeight: 1.7,
 
-                <button
-                  style={styles.iconButton}
-                  onClick={cancelEdit}
-                >
-                  <X size={15} />
+            fontSize: 15,
 
-                  <div
-                    style={styles.tooltip}
-                  >
-                    Cancel
-                  </div>
-                </button>
-              </>
-            )}
-          </div>
+            whiteSpace: "pre-wrap",
 
-          {/* EDITOR */}
-          {editing ? (
-            <textarea
-              value={editedContent}
-              onChange={(e) =>
-                setEditedContent(
-                  e.target.value
-                )
-              }
-              style={styles.editor}
-            />
-          ) : previewMode ? (
+            wordBreak:
+              "break-word",
+
+            border:
+              "1px solid #1e293b",
+
+            boxShadow:
+              "0 4px 20px rgba(0,0,0,0.25)",
+
+            overflow: "hidden",
+          }}
+        >
+          {/* COPY BUTTON */}
+          <button
+            onClick={copyMessage}
+            style={{
+              position: "absolute",
+
+              top: 10,
+              right: 10,
+
+              width: 30,
+              height: 30,
+
+              borderRadius: 8,
+
+              border: "none",
+
+              backgroundColor:
+                "rgba(255,255,255,0.08)",
+
+              color: "white",
+
+              cursor: "pointer",
+
+              display: "flex",
+
+              alignItems: "center",
+
+              justifyContent:
+                "center",
+            }}
+          >
+            <Copy size={15} />
+          </button>
+
+          {/* MARKDOWN */}
+          <div
+            style={{
+              paddingRight: 40,
+            }}
+          >
             <ReactMarkdown
               components={{
                 code({
@@ -195,87 +183,43 @@ export default function ChatMessage({
                       className || ""
                     )
 
-                  const codeString =
-                    String(
-                      children
-                    ).replace(
-                      /\n$/,
-                      ""
-                    )
-
                   return !inline &&
                     match ? (
-                    <div
-  style={{
-    ...styles.container,
+                    <SyntaxHighlighter
+                      style={oneDark}
+                      language={
+                        match[1]
+                      }
+                      PreTag="div"
+                      customStyle={{
+                        borderRadius: 14,
 
-    flexDirection:
-      role === "user"
-        ? "row-reverse"
-        : "row",
-  }}
->
-                      <div
-                        style={
-                          styles.codeToolbar
-                        }
-                      >
-                        <button
-                          onClick={() =>
-                            copyCode(
-                              codeString
-                            )
-                          }
-                          style={
-                            styles.iconButton
-                          }
-                        >
-                          {copied ? (
-                            <>
-                              <Check
-                                size={14}
-                              />
+                        padding: 16,
 
-                              <div
-                                style={
-                                  styles.tooltip
-                                }
-                              >
-                                Copied
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <Copy
-                                size={14}
-                              />
-
-                              <div
-                                style={
-                                  styles.tooltip
-                                }
-                              >
-                                Copy
-                              </div>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      <SyntaxHighlighter
-                        style={oneDark}
-                        language={match[1]}
-                        PreTag="div"
-                        {...props}
-                      >
-                        {codeString}
-                      </SyntaxHighlighter>
-                    </div>
+                        fontSize: 14,
+                      }}
+                      {...props}
+                    >
+                      {String(
+                        children
+                      ).replace(
+                        /\n$/,
+                        ""
+                      )}
+                    </SyntaxHighlighter>
                   ) : (
                     <code
-                      style={
-                        styles.inlineCode
-                      }
+                      style={{
+                        backgroundColor:
+                          "rgba(255,255,255,0.1)",
+
+                        padding:
+                          "2px 6px",
+
+                        borderRadius: 6,
+
+                        fontSize: 14,
+                      }}
                       {...props}
                     >
                       {children}
@@ -284,174 +228,11 @@ export default function ChatMessage({
                 },
               }}
             >
-              {editedContent}
+              {content}
             </ReactMarkdown>
-          ) : (
-            <textarea
-              value={editedContent}
-              readOnly
-              style={styles.editor}
-            />
-          )}
+          </div>
         </div>
       </div>
     </div>
   )
-}
-
-if (typeof window !== "undefined") {
-  const style =
-    document.createElement("style")
-
-  style.innerHTML = `
-    button:hover div {
-      opacity: 1 !important;
-    }
-  `
-
-  document.head.appendChild(style)
-}
-
-const styles: any = {
- wrapper: {
-  width: "100%",
-  padding: "20px",
-
-  display: "flex",
-
-  justifyContent:
-    "flex-start",
-},
-
-  container: {
-  maxWidth: 900,
-  margin: "0 auto",
-
-  display: "flex",
-  gap: 18,
-
-  alignItems: "flex-start",
-},
-
-  avatar: {
-    width: 34,
-    height: 34,
-
-    borderRadius: 8,
-
-    backgroundColor: "#1f2937",
-
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-
-    flexShrink: 0,
-
-    fontSize: 18,
-  },
-
- content: {
-  maxWidth: "75%",
-
-  color: "white",
-
-  lineHeight: 1.8,
-
-  fontSize: 15,
-
-  textAlign: "left",
-},
-
-  topBar: {
-    display: "flex",
-    gap: 8,
-    marginBottom: 12,
-    opacity: 0.8,
-  },
-
-  iconButton: {
-    backgroundColor: "#0f172a",
-    border: "1px solid #334155",
-
-    color: "white",
-
-    width: 32,
-    height: 32,
-
-    borderRadius: 8,
-
-    cursor: "pointer",
-
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-
-    position: "relative",
-  },
-
-  tooltip: {
-    position: "absolute",
-
-    bottom: -34,
-    left: "50%",
-
-    transform: "translateX(-50%)",
-
-    backgroundColor: "#020617",
-
-    color: "white",
-
-    padding: "5px 9px",
-
-    borderRadius: 6,
-
-    fontSize: 11,
-
-    opacity: 0,
-
-    transition: "0.2s",
-
-    pointerEvents: "none",
-
-    whiteSpace: "nowrap",
-  },
-
-  inlineCode: {
-    backgroundColor: "#020617",
-    padding: "2px 6px",
-    borderRadius: 6,
-  },
-
-  codeContainer: {
-    position: "relative",
-    marginTop: 12,
-  },
-
-  codeToolbar: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    zIndex: 10,
-  },
-
-  editor: {
-    width: "100%",
-    minHeight: 220,
-
-    backgroundColor: "#020617",
-
-    color: "white",
-
-    border: "1px solid #334155",
-
-    borderRadius: 12,
-
-    padding: 14,
-
-    resize: "vertical",
-
-    fontSize: 14,
-
-    outline: "none",
-  },
 }

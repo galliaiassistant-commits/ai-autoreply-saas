@@ -1,72 +1,95 @@
 import OpenAI from "openai"
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey:
+    process.env.OPENAI_API_KEY,
 })
 
-export async function POST(req: Request) {
+export async function POST(
+  req: Request
+) {
   try {
-    const body = await req.json()
+    const {
+      messages,
+      image,
+    } = await req.json()
 
-    const messages = [
-      {
-        role: "system",
-        content: `
-You are GalliAssist, an advanced AI assistant.
-
-Speak naturally, intelligently, and conversationally like ChatGPT.
-
-- Be helpful and clear.
-- Avoid robotic wording.
-- Adapt to the user's tone.
-- Give modern and concise answers.
-- Never say "As an AI language model".
-`,
-      },
-
-      ...(body.history || []),
-
-      {
-        role: "user",
-        content: body.message,
-      },
-    ]
-
-    const completion =
+    const response =
       await openai.chat.completions.create({
         model: "gpt-4o-mini",
-        messages,
+
+        messages: messages.map(
+          (
+            msg: any,
+            index: number
+          ) => ({
+            role: msg.role,
+
+            content:
+              image &&
+              index ===
+                messages.length -
+                  1
+                ? [
+                    {
+                      type:
+                        "text",
+
+                      text:
+                        msg.content,
+                    },
+
+                    {
+                      type:
+                        "image_url",
+
+                      image_url:
+                        {
+                          url: image,
+                        },
+                    },
+                  ]
+                : msg.content,
+          })
+        ),
+
         stream: true,
-        temperature: 0.8,
       })
 
-    const encoder = new TextEncoder()
+    const encoder =
+      new TextEncoder()
 
-    const readableStream = new ReadableStream({
-      async start(controller) {
-        for await (const chunk of completion) {
-          const text =
-            chunk.choices[0]?.delta?.content || ""
+    const stream =
+      new ReadableStream({
+        async start(
+          controller
+        ) {
+          for await (
+            const chunk of response
+          ) {
+            const text =
+              chunk.choices[0]
+                ?.delta
+                ?.content || ""
 
-          controller.enqueue(
-            encoder.encode(text)
-          )
-        }
+            controller.enqueue(
+              encoder.encode(
+                text
+              )
+            )
+          }
 
-        controller.close()
-      },
-    })
+          controller.close()
+        },
+      })
 
-    return new Response(readableStream)
+    return new Response(stream)
   } catch (error: any) {
-    console.error(error)
+    console.log(error)
 
-    return new Response(
-      error?.message ||
+    return Response.json({
+      error:
         "Something went wrong",
-      {
-        status: 500,
-      }
-    )
+    })
   }
 }
