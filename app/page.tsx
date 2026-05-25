@@ -1,12 +1,3 @@
-<h1
-style={{
-  color: "red",
-  fontSize: 50,
-}}
->
-LIVE NEW VERSION
-</h1>
-
 "use client"
 
 import { useEffect, useState } from "react"
@@ -20,6 +11,15 @@ import {
   ImagePlus,
   SendHorizontal,
 } from "lucide-react"
+
+<h1
+style={{
+  color: "red",
+  fontSize: 50,
+}}
+>
+LIVE NEW VERSION
+</h1>
 
 type Message = {
   role: "user" | "assistant"
