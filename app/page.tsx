@@ -1,3 +1,12 @@
+<h1
+style={{
+  color: "red",
+  fontSize: 50,
+}}
+>
+LIVE NEW VERSION
+</h1>
+
 "use client"
 
 import { useEffect, useState } from "react"
