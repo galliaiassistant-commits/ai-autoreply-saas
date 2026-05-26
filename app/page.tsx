@@ -6,20 +6,12 @@ import ChatMessage from "@/components/ChatMessage"
 import AuthModal from "@/components/AuthModal"
 import { supabase } from "./lib/supabase"
 import { styles } from "@/styles/chat"
+
 import {
   Mic,
   ImagePlus,
   SendHorizontal,
 } from "lucide-react"
-
-<h1
-style={{
-  color: "red",
-  fontSize: 50,
-}}
->
-LIVE NEW VERSION
-</h1>
 
 type Message = {
   role: "user" | "assistant"
@@ -37,31 +29,40 @@ export default function Home() {
   const [message, setMessage] =
     useState("")
 
-    const [image, setImage] =
-  useState<string | null>(
-    null
-  )
+  const [image, setImage] =
+    useState<string | null>(
+      null
+    )
 
   const [
-  generatedImage,
-  setGeneratedImage,
-] = useState<
-  string | null
->(null)
-const [recording, setRecording] =
-  useState(false)
+    generatedImage,
+    setGeneratedImage,
+  ] = useState<
+    string | null
+  >(null)
 
-const [voiceMode, setVoiceMode] =
-  useState(false)
+  const [
+    recording,
+    setRecording,
+  ] = useState(false)
+
+  const [
+    voiceMode,
+    setVoiceMode,
+  ] = useState(false)
 
   const [loading, setLoading] =
     useState(false)
 
-  const [sidebarOpen, setSidebarOpen] =
-    useState(false)
+  const [
+    sidebarOpen,
+    setSidebarOpen,
+  ] = useState(false)
 
-  const [currentChat, setCurrentChat] =
-    useState(0)
+  const [
+    currentChat,
+    setCurrentChat,
+  ] = useState(0)
 
   const [authOpen, setAuthOpen] =
     useState(false)
@@ -69,20 +70,24 @@ const [voiceMode, setVoiceMode] =
   const [user, setUser] =
     useState<any>(null)
 
-  const [conversations, setConversations] =
-    useState<Conversation[]>([
-      {
-        title: "New Chat",
+  const [
+    conversations,
+    setConversations,
+  ] = useState<
+    Conversation[]
+  >([
+    {
+      title: "New Chat",
 
-        messages: [],
+      messages: [],
 
-        pinned: false,
+      pinned: false,
 
-        archived: false,
-      },
-    ])
+      archived: false,
+    },
+  ])
 
-  // LOAD SAVED CHATS
+  // LOAD CHATS
   useEffect(() => {
     const saved =
       localStorage.getItem(
@@ -100,24 +105,27 @@ const [voiceMode, setVoiceMode] =
   useEffect(() => {
     localStorage.setItem(
       "galli-conversations",
-      JSON.stringify(conversations)
+      JSON.stringify(
+        conversations
+      )
     )
   }, [conversations])
 
-  // CHECK USER
+  // GET USER
   useEffect(() => {
-  const getUser =
-    async () => {
-      const {
-        data,
-      } =
-        await supabase.auth.getUser()
+    const getUser =
+      async () => {
+        const {
+          data,
+        } =
+          await supabase.auth.getUser()
 
-      setUser(data.user)
-    }
+        setUser(data.user)
+      }
 
-  getUser()
-}, [])
+    getUser()
+  }, [])
+
   const currentMessages =
     conversations[currentChat]
       ?.messages || []
@@ -126,6 +134,7 @@ const [voiceMode, setVoiceMode] =
   const createNewChat = () => {
     setConversations((prev) => [
       ...prev,
+
       {
         title: "New Chat",
 
@@ -142,275 +151,288 @@ const [voiceMode, setVoiceMode] =
     )
   }
 
-const startVoiceInput = () => {
-  const SpeechRecognition =
-    (
-      window as any
-    ).SpeechRecognition ||
-    (
-      window as any
-    ).webkitSpeechRecognition
+  // VOICE INPUT
+  const startVoiceInput =
+    () => {
+      const SpeechRecognition =
+        (
+          window as any
+        ).SpeechRecognition ||
+        (
+          window as any
+        ).webkitSpeechRecognition
 
-  if (!SpeechRecognition) {
-    alert(
-      "Voice recognition not supported."
-    )
-
-    return
-  }
-
-  const recognition =
-    new SpeechRecognition()
-
-  recognition.lang = "en-US"
-
-  recognition.start()
-
-setVoiceMode(true)
-
-  setRecording(true)
-
-  recognition.onresult = (
-    event: any
-  ) => {
-    const transcript =
-      event.results[0][0]
-        .transcript
-
-    setMessage(
-      (prev: string) =>
-        prev + " " + transcript
-    )
-  }
-
-  recognition.onend = () => {
-    setRecording(false)
-  }
-}
-
-const speakResponse = (
-  text: string
-) => {
-  const utterance =
-    new SpeechSynthesisUtterance(
-      text
-    )
-
-  utterance.rate = 1
-
-  utterance.pitch = 1
-
-  utterance.volume = 1
-
-  window.speechSynthesis.speak(
-    utterance
-  )
-}
-const generateImage =
-  async () => {
-    if (!message.trim())
-      return
-
-    try {
-      const response =
-        await fetch(
-          "/api/image",
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              prompt: message,
-            }),
-          }
+      if (
+        !SpeechRecognition
+      ) {
+        alert(
+          "Voice recognition not supported."
         )
 
-      const data =
-        await response.json()
+        return
+      }
 
-      setGeneratedImage(
-        data.image
-      )
-    } catch (err) {
-      console.log(err)
-    }
-  }
-  // SEND MESSAGE
-  const sendMessage = async () => {
-    if (!message.trim()) return
+      const recognition =
+        new SpeechRecognition()
 
-const lowerMessage =
-  message.toLowerCase()
+      recognition.lang =
+        "en-US"
 
-const shouldGenerateImage =
-  lowerMessage.includes(
-    "generate"
-  ) ||
-  lowerMessage.includes(
-    "create image"
-  ) ||
-  lowerMessage.includes(
-    "make an image"
-  ) ||
-  lowerMessage.includes(
-    "draw"
-  )
+      recognition.start()
 
-if (shouldGenerateImage) {
-  await generateImage()
+      setVoiceMode(true)
 
-  return
-}
+      setRecording(true)
 
-    const userMessage = message
+      recognition.onresult =
+        (
+          event: any
+        ) => {
+          const transcript =
+            event.results[0][0]
+              .transcript
 
-    setMessage("")
-
-    const updatedConversations = [
-      ...conversations,
-    ]
-
-    // USER MESSAGE
-    updatedConversations[
-      currentChat
-    ].messages.push({
-      role: "user",
-
-      content: userMessage,
-    })
-
-    // EMPTY AI MESSAGE
-    updatedConversations[
-      currentChat
-    ].messages.push({
-      role: "assistant",
-
-      content: "",
-    })
-
-    setConversations([
-      ...updatedConversations,
-    ])
-
-    setLoading(true)
-
-    try {
-      const response = await fetch(
-        "/api/chat",
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-        body: JSON.stringify({
-  messages: [
-    ...conversations[currentChat]
-      .messages,
-
-    {
-      role: "user",
-
-      content: message,
-    },
-  ],
-
-  image,
-}),
+          setMessage(
+            (
+              prev: string
+            ) =>
+              prev +
+              " " +
+              transcript
+          )
         }
+
+      recognition.onend =
+        () => {
+          setRecording(false)
+        }
+    }
+
+  // SPEAK RESPONSE
+  const speakResponse = (
+    text: string
+  ) => {
+    const utterance =
+      new SpeechSynthesisUtterance(
+        text
       )
 
-      if (!response.body) return
+    utterance.rate = 1
 
-      const reader =
-        response.body.getReader()
+    utterance.pitch = 1
 
-      const decoder =
-        new TextDecoder()
+    utterance.volume = 1
 
-      let fullReply = ""
+    window.speechSynthesis.speak(
+      utterance
+    )
+  }
 
-      while (true) {
-        const { done, value } =
-          await reader.read()
+  // SEND MESSAGE
+  const generateImage =
+    async () => {
+      if (
+        !message.trim()
+      )
+        return
 
-        if (done) break
+      const updatedConversations =
+        [
+          ...conversations,
+        ]
 
-        const chunk =
-          decoder.decode(value)
+      // USER MESSAGE
+      updatedConversations[
+        currentChat
+      ].messages.push({
+        role: "user",
 
-        fullReply += chunk
+        content: message,
+      })
 
+      // EMPTY AI MESSAGE
+      updatedConversations[
+        currentChat
+      ].messages.push({
+        role:
+          "assistant",
+
+        content: "",
+      })
+
+      setConversations([
+        ...updatedConversations,
+      ])
+
+      setLoading(true)
+
+      try {
+        const response =
+          await fetch(
+            "/api/chat",
+            {
+              method:
+                "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify(
+                {
+                  messages:
+                    [
+                      ...conversations[
+                        currentChat
+                      ]
+                        .messages,
+
+                      {
+                        role:
+                          "user",
+
+                        content:
+                          message,
+                      },
+                    ],
+
+                  image,
+                }
+              ),
+            }
+          )
+
+        if (
+          !response.body
+        )
+          return
+
+        const reader =
+          response.body.getReader()
+
+        const decoder =
+          new TextDecoder()
+
+        let fullReply =
+          ""
+
+        while (true) {
+          const {
+            done,
+            value,
+          } =
+            await reader.read()
+
+          if (done)
+            break
+
+          const chunk =
+            decoder.decode(
+              value
+            )
+
+          fullReply +=
+            chunk
+
+          updatedConversations[
+            currentChat
+          ].messages[
+            updatedConversations[
+              currentChat
+            ].messages
+              .length -
+              1
+          ].content =
+            fullReply
+
+          setConversations(
+            [
+              ...updatedConversations,
+            ]
+          )
+        }
+
+        if (
+          voiceMode
+        ) {
+          speakResponse(
+            fullReply
+          )
+
+          setVoiceMode(
+            false
+          )
+        }
+
+        // AUTO TITLE
+        if (
+          updatedConversations[
+            currentChat
+          ].title ===
+          "New Chat"
+        ) {
+          updatedConversations[
+            currentChat
+          ].title =
+            message.slice(
+              0,
+              25
+            )
+        }
+
+        setConversations([
+          ...updatedConversations,
+        ])
+
+        setMessage("")
+
+        setImage(null)
+      } catch (
+        err: any
+      ) {
         updatedConversations[
           currentChat
         ].messages[
           updatedConversations[
             currentChat
-          ].messages.length - 1
-        ].content = fullReply
+          ].messages
+            .length -
+            1
+        ].content =
+          "Error: " +
+          err.message
 
         setConversations([
           ...updatedConversations,
         ])
       }
-if (voiceMode) {
-  speakResponse(fullReply)
 
-  setVoiceMode(false)
-}
-      // AUTO TITLE
-      if (
-        updatedConversations[
-          currentChat
-        ].title === "New Chat"
-      ) {
-        updatedConversations[
-          currentChat
-        ].title =
-          userMessage.slice(0, 25)
-      }
-
-      setConversations([
-        ...updatedConversations,
-      ])
-    } catch (err: any) {
-      updatedConversations[
-        currentChat
-      ].messages[
-        updatedConversations[
-          currentChat
-        ].messages.length - 1
-      ].content =
-        "Error: " + err.message
-
-      setConversations([
-        ...updatedConversations,
-      ])
+      setLoading(false)
     }
-
-    setLoading(false)
-  }
 
   return (
     <div style={styles.page}>
       {/* SIDEBAR */}
       <Sidebar
-        chats={conversations}
-        setChats={setConversations}
-        currentChat={currentChat}
+        chats={
+          conversations
+        }
+        setChats={
+          setConversations
+        }
+        currentChat={
+          currentChat
+        }
         setCurrentChat={
           setCurrentChat
         }
         createNewChat={
           createNewChat
         }
-        sidebarOpen={sidebarOpen}
+        sidebarOpen={
+          sidebarOpen
+        }
         setSidebarOpen={
           setSidebarOpen
         }
@@ -419,24 +441,34 @@ if (voiceMode) {
       {/* MAIN */}
       <div style={styles.main}>
         {/* TOP BAR */}
-        <div style={styles.topBar}>
+        <div
+          style={
+            styles.topBar
+          }
+        >
           <button
             onClick={() =>
-              setSidebarOpen(true)
+              setSidebarOpen(
+                true
+              )
             }
-            style={styles.menuButton}
+            style={
+              styles.menuButton
+            }
           >
             ☰
           </button>
 
-          {/* AUTH */}
           <div
             style={{
-              marginLeft: "auto",
+              marginLeft:
+                "auto",
 
-              display: "flex",
+              display:
+                "flex",
 
-              alignItems: "center",
+              alignItems:
+                "center",
 
               gap: 12,
             }}
@@ -454,7 +486,8 @@ if (voiceMode) {
                     backgroundColor:
                       "#2563eb",
 
-                    display: "flex",
+                    display:
+                      "flex",
 
                     alignItems:
                       "center",
@@ -499,8 +532,12 @@ if (voiceMode) {
           </div>
         </div>
 
-        {/* CHAT AREA */}
-        <div style={styles.chatArea}>
+        {/* CHAT */}
+        <div
+          style={
+            styles.chatArea
+          }
+        >
           {/* MESSAGES */}
           <div
             style={
@@ -514,17 +551,24 @@ if (voiceMode) {
               ) => (
                 <ChatMessage
                   key={i}
-                  role={msg.role}
-                  content={msg.content}
+                  role={
+                    msg.role
+                  }
+                  content={
+                    msg.content
+                  }
                 />
               )
             )}
 
             {loading && (
               <div
-                style={styles.loading}
+                style={
+                  styles.loading
+                }
               >
-                GalliAssist is
+                GalliAssist
+                is
                 thinking...
               </div>
             )}
@@ -532,179 +576,187 @@ if (voiceMode) {
 
           {/* INPUT */}
           <div
-            style={styles.inputSection}
+            style={
+              styles.inputSection
+            }
           >
+            {/* IMAGE PREVIEW */}
             {image && (
-  <div
-    style={{
-      padding: 10,
+              <div
+                style={{
+                  padding: 10,
 
-      display: "flex",
+                  display:
+                    "flex",
 
-      justifyContent:
-        "flex-start",
-    }}
-  >
-    <img
-      src={image}
-      alt="upload"
-      style={{
-        width: 180,
+                  justifyContent:
+                    "flex-start",
+                }}
+              >
+                <img
+                  src={
+                    image
+                  }
+                  alt="upload"
+                  style={{
+                    width: 180,
 
-        borderRadius: 18,
+                    borderRadius: 18,
 
-        border:
-          "1px solid #334155",
-      }}
-    />
-  </div>
-)}
+                    border:
+                      "1px solid #334155",
+                  }}
+                />
+              </div>
+            )}
 
-{generatedImage && (
-  <div
-    style={{
-      padding: 10,
-    }}
-  >
-    <img
-      src={generatedImage}
-      alt="generated"
-      style={{
-        width: 300,
+            {/* GENERATED IMAGE */}
+            {generatedImage && (
+              <div
+                style={{
+                  padding: 10,
+                }}
+              >
+                <img
+                  src={
+                    generatedImage
+                  }
+                  alt="generated"
+                  style={{
+                    width: 300,
 
-        borderRadius: 18,
-      }}
-    />
-  </div>
-)}
+                    borderRadius: 18,
+                  }}
+                />
+              </div>
+            )}
 
-            <div style={styles.inputWrapper}>
-  <input
-    type="file"
-    accept="image/*"
-    id="imageUpload"
-    style={{
-      display: "none",
-    }}
-    onChange={(e) => {
-      const file =
-        e.target.files?.[0]
+            <div
+              style={
+                styles.inputWrapper
+              }
+            >
+              {/* HIDDEN INPUT */}
+              <input
+                type="file"
+                accept="image/*"
+                id="imageUpload"
+                style={{
+                  display:
+                    "none",
+                }}
+                onChange={(
+                  e
+                ) => {
+                  const file =
+                    e.target
+                      .files?.[0]
 
-      if (!file) return
+                  if (
+                    !file
+                  )
+                    return
 
-      const reader =
-        new FileReader()
+                  const reader =
+                    new FileReader()
 
-      reader.onloadend =
-        () => {
-          setImage(
-            reader.result as string
-          )
-        }
+                  reader.onloadend =
+                    () => {
+                      setImage(
+                        reader.result as string
+                      )
+                    }
 
-      reader.readAsDataURL(file)
-    }}
-  />
+                  reader.readAsDataURL(
+                    file
+                  )
+                }}
+              />
 
-  <label
-    htmlFor="imageUpload"
-    style={{
-      cursor: "pointer",
+              {/* IMAGE BUTTON */}
+              <button
+                title="Upload Image"
+                style={{
+                  background:
+                    "transparent",
 
-      fontSize: 22,
+                  border:
+                    "none",
 
-      padding: "0 10px",
-    }}
-  >
-    
-  </label>
+                  cursor:
+                    "pointer",
 
-<button
-  onClick={startVoiceInput}
-  style={{
-    background: "transparent",
+                  padding: 8,
 
-    border: "none",
+                  color:
+                    "#94a3b8",
+                }}
+              >
+                <label
+                  htmlFor="imageUpload"
+                  style={{
+                    cursor:
+                      "pointer",
 
-    cursor: "pointer",
+                    display:
+                      "flex",
+                  }}
+                >
+                  <ImagePlus
+                    size={
+                      22
+                    }
+                  />
+                </label>
+              </button>
 
-    fontSize: 22,
+              {/* MIC BUTTON */}
+              <button
+                onClick={
+                  startVoiceInput
+                }
+                title="Voice Input"
+                style={{
+                  background:
+                    "transparent",
 
-    padding: "0 10px",
+                  border:
+                    "none",
 
-    color: recording
-      ? "#ef4444"
-      : "white",
+                  cursor:
+                    "pointer",
 
-    display: "flex",
+                  padding: 8,
 
-    alignItems: "center",
-  }}
->
-  
-</button>
-<button
-  onClick={generateImage}
-  style={{
-    background: "transparent",
+                  color:
+                    recording
+                      ? "#ef4444"
+                      : "#94a3b8",
+                }}
+              >
+                <Mic
+                  size={
+                    22
+                  }
+                />
+              </button>
 
-    border: "none",
-
-    cursor: "pointer",
-
-    fontSize: 22,
-
-    padding: "0 10px",
-  }}
->
-  ✨
-</button>
-
-<button
-  title="Upload Image"
-  style={{
-    background: "transparent",
-    border: "none",
-    cursor: "pointer",
-    padding: 8,
-    color: "#94a3b8",
-  }}
->
-  <label
-    htmlFor="imageUpload"
-    style={{
-      cursor: "pointer",
-      display: "flex",
-    }}
-  >
-    <ImagePlus size={22} />
-  </label>
-</button>
-
-<button
-  onClick={startVoiceInput}
-  title="Voice Input"
-  style={{
-    background: "transparent",
-    border: "none",
-    cursor: "pointer",
-    padding: 8,
-    color: recording
-      ? "#ef4444"
-      : "#94a3b8",
-  }}
->
-  <Mic size={22} />
-</button>
-
-  <textarea
-                value={message}
-                onChange={(e) =>
+              {/* TEXTAREA */}
+              <textarea
+                value={
+                  message
+                }
+                onChange={(
+                  e
+                ) =>
                   setMessage(
-                    e.target.value
+                    e.target
+                      .value
                   )
                 }
-                onKeyDown={(e) => {
+                onKeyDown={(
+                  e
+                ) => {
                   if (
                     e.key ===
                       "Enter" &&
@@ -712,40 +764,52 @@ if (voiceMode) {
                   ) {
                     e.preventDefault()
 
-                    sendMessage()
+                    generateImage()
                   }
                 }}
                 placeholder="Message GalliAssist..."
-                style={styles.input}
+                style={
+                  styles.input
+                }
               />
 
-                <button
-  onClick={sendMessage}
-  style={{
-    background:
-      "linear-gradient(to right,#2563eb,#7c3aed)",
+              {/* SEND BUTTON */}
+              <button
+                onClick={
+                  generateImage
+                }
+                style={{
+                  background:
+                    "linear-gradient(to right,#2563eb,#7c3aed)",
 
-    border: "none",
+                  border:
+                    "none",
 
-    borderRadius: 14,
+                  borderRadius: 14,
 
-    padding: "10px 14px",
+                  padding:
+                    "10px 14px",
 
-    cursor: "pointer",
+                  cursor:
+                    "pointer",
 
-    display: "flex",
+                  display:
+                    "flex",
 
-    alignItems: "center",
+                  alignItems:
+                    "center",
 
-    justifyContent: "center",
-  }}
->
-  <SendHorizontal
-    size={20}
-    color="white"
-  />
-</button>
-            
+                  justifyContent:
+                    "center",
+                }}
+              >
+                <SendHorizontal
+                  size={
+                    20
+                  }
+                  color="white"
+                />
+              </button>
             </div>
           </div>
         </div>
@@ -754,7 +818,9 @@ if (voiceMode) {
       {/* AUTH MODAL */}
       <AuthModal
         open={authOpen}
-        setOpen={setAuthOpen}
+        setOpen={
+          setAuthOpen
+        }
       />
     </div>
   )

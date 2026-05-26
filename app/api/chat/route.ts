@@ -85,7 +85,10 @@ export async function POST(
 
     return new Response(stream)
   } catch (error: any) {
-    console.log(error)
+    console.log(
+  "OPENAI ERROR:",
+  error
+)
 
     return Response.json({
       error:
