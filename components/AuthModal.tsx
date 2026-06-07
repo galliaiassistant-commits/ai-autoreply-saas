@@ -4,12 +4,7 @@
 
 import { useState } from "react"
 
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { supabase } from "@/app/lib/supabase"
 
 type Props = {
   open: boolean
@@ -123,6 +118,27 @@ export default function AuthModal({
             ? "Loading..."
             : "Login"}
         </button>
+
+        <button
+  onClick={async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+    })
+  }}
+  style={{
+    width: "100%",
+    padding: 12,
+    borderRadius: 12,
+    border: "none",
+    background: "#ffffff",
+    color: "#000",
+    fontWeight: "bold",
+    cursor: "pointer",
+    marginTop: 12,
+  }}
+>
+  Continue with Google
+</button>
 
         <button
           onClick={signUp}
