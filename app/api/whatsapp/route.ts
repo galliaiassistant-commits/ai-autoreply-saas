@@ -27,12 +27,6 @@ export async function GET(req: Request) {
 
   return new Response(
     "Verification failed",
-    { status: 403 }
-  )
-}
-
-  return new Response(
-    "Verification failed",
     {
       status: 403,
     }
