@@ -11,28 +11,14 @@ export async function GET(req: Request) {
   const token = searchParams.get("hub.verify_token")
   const challenge = searchParams.get("hub.challenge")
 
-  console.log("MODE:", mode)
-  console.log("TOKEN:", token)
-  console.log(
-    "EXPECTED:",
-    process.env.WHATSAPP_VERIFY_TOKEN
-  )
-
-  if (
-    mode === "subscribe" &&
-    token === process.env.WHATSAPP_VERIFY_TOKEN
-  ) {
-    return new Response(challenge)
-  }
-
-  return new Response(
-    "Verification failed",
-    {
-      status: 403,
-    }
-  )
+  return Response.json({
+    mode,
+    token,
+    expected:
+      process.env.WHATSAPP_VERIFY_TOKEN,
+    challenge,
+  })
 }
-
 export async function POST(req: Request) {
   const body =
     await req.json()
