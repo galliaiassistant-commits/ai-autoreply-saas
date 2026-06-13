@@ -1,5 +1,10 @@
 import OpenAI from "openai"
 
+console.log(
+  "OPENAI KEY EXISTS:",
+  !!process.env.OPENAI_API_KEY
+)
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
@@ -11,13 +16,19 @@ export async function GET(req: Request) {
   const token = searchParams.get("hub.verify_token")
   const challenge = searchParams.get("hub.challenge")
 
-  return Response.json({
-    mode,
-    token,
-    expected:
-      process.env.WHATSAPP_VERIFY_TOKEN,
-    challenge,
-  })
+  if (
+    mode === "subscribe" &&
+    token === process.env.WHATSAPP_VERIFY_TOKEN
+  ) {
+    return new Response(challenge)
+  }
+
+  return new Response(
+    "Verification failed",
+    {
+      status: 403,
+    }
+  )
 }
 export async function POST(req: Request) {
   const body =
