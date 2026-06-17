@@ -36,25 +36,22 @@ export async function POST(req: Request) {
 
 console.log("WEBHOOK RECEIVED")
 console.log(JSON.stringify(body, null, 2))
-
 console.log("WHATSAPP BODY:", JSON.stringify(body))
+
 
   try {
     const message =
-      body.entry?.[0]
-        ?.changes?.[0]
-        ?.value?.messages?.[0]
+  body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]
 
-    if (!message)
-      return Response.json({
-        ok: true,
-      })
+if (!message) {
+  return Response.json({ ok: true })
+}
 
-    const userText =
-      message.text?.body
+const userText = (message as any).text?.body
+const from = (message as any).from
 
-    const from =
-      message.from
+console.log("MESSAGE EXTRACTED:", message)
+console.log("INCOMING MESSAGE TYPE:", message?.type)
 
     const ai =
       await openai.chat.completions.create(
@@ -82,9 +79,8 @@ console.log("WHATSAPP BODY:", JSON.stringify(body))
         }
       )
 
-    const reply =
-      ai.choices[0]
-        .message.content
+   const reply =
+  ai.choices?.[0]?.message?.content || "Sorry, I couldn't process that."
 
 console.log("PHONE ID:", process.env.WHATSAPP_PHONE_NUMBER_ID)
 console.log("TOKEN EXISTS:", !!process.env.WHATSAPP_ACCESS_TOKEN)
@@ -92,30 +88,25 @@ console.log("REPLYING TO:", from)
 console.log("AI REPLY:", reply)
 
 
-    await fetch(
-      `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-      {
-        method: "POST",
+   const res = await fetch(
+  `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+  {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: from,
+      text: { body: reply },
+    }),
+  }
+)
 
-        headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+const data = await res.json()
 
-          "Content-Type":
-            "application/json",
-        },
-
-        body: JSON.stringify({
-          messaging_product:
-            "whatsapp",
-
-          to: from,
-
-          text: {
-            body: reply,
-          },
-        }),
-      }
-    )
+console.log("WHATSAPP API RESPONSE:", data)
 
     return Response.json({
       success: true,
