@@ -34,6 +34,8 @@ export async function POST(req: Request) {
   const body =
     await req.json()
 
+console.log("WHATSAPP BODY:", JSON.stringify(body))
+
   try {
     const message =
       body.entry?.[0]
@@ -110,8 +112,7 @@ export async function POST(req: Request) {
       success: true,
     })
   } catch (err) {
-    console.log(err)
-
+    console.error("POST ERROR:", err)
     return Response.json({
       error:
         "Something went wrong",
