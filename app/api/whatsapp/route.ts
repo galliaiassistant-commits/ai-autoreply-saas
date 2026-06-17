@@ -34,6 +34,9 @@ export async function POST(req: Request) {
   const body =
     await req.json()
 
+console.log("WEBHOOK RECEIVED")
+console.log(JSON.stringify(body, null, 2))
+
 console.log("WHATSAPP BODY:", JSON.stringify(body))
 
   try {
