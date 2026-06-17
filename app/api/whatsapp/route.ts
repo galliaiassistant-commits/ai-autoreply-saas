@@ -86,6 +86,12 @@ console.log("WHATSAPP BODY:", JSON.stringify(body))
       ai.choices[0]
         .message.content
 
+console.log("PHONE ID:", process.env.WHATSAPP_PHONE_NUMBER_ID)
+console.log("TOKEN EXISTS:", !!process.env.WHATSAPP_ACCESS_TOKEN)
+console.log("REPLYING TO:", from)
+console.log("AI REPLY:", reply)
+
+
     await fetch(
       `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
       {
