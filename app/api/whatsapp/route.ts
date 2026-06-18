@@ -32,9 +32,17 @@ export async function GET(req: Request) {
   return new Response("Verification failed", { status: 403 })
 }
 export async function POST(req: Request) {
-  const body =
-    await req.json()
+  console.log("🔥 POST HIT")
+  console.log("CONTENT-TYPE:", req.headers.get("content-type"))
 
+  let body
+
+  try {
+    body = await req.json()
+  } catch (err) {
+    console.log("FAILED TO PARSE JSON:", err)
+    return new Response("Invalid JSON", { status: 400 })
+  }
 console.log("WEBHOOK RECEIVED")
 console.log(JSON.stringify(body, null, 2))
 console.log("WHATSAPP BODY:", JSON.stringify(body))
