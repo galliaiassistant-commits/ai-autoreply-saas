@@ -16,26 +16,20 @@ export async function GET(req: Request) {
   const token = searchParams.get("hub.verify_token")
   const challenge = searchParams.get("hub.challenge")
 
-console.log("MODE:", mode)
-console.log("TOKEN FROM META:", token)
-console.log(
-  "TOKEN FROM VERCEL:",
-  process.env.WHATSAPP_VERIFY_TOKEN
-)
+  console.log("MODE:", mode)
+  console.log("TOKEN FROM META:", token)
+  console.log("TOKEN FROM VERCEL:", process.env.WHATSAPP_VERIFY_TOKEN)
 
-  if (
-    mode === "subscribe" &&
-    token === process.env.WHATSAPP_VERIFY_TOKEN
-  ) {
-    return new Response(challenge)
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN?.trim()
+
+  if (mode === "subscribe" && token === verifyToken) {
+    console.log("WEBHOOK VERIFIED SUCCESSFULLY")
+    return new Response(challenge, { status: 200 })
   }
 
-  return new Response(
-    "Verification failed",
-    {
-      status: 403,
-    }
-  )
+  console.log("WEBHOOK VERIFICATION FAILED")
+
+  return new Response("Verification failed", { status: 403 })
 }
 export async function POST(req: Request) {
   const body =
@@ -47,18 +41,28 @@ console.log("WHATSAPP BODY:", JSON.stringify(body))
 
 
   try {
-    const message =
-  body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]
+    const value = body.entry?.[0]?.changes?.[0]?.value
+const message = value?.messages?.[0]
+
+console.log("WEBHOOK VALUE:", value)
+console.log("MESSAGE RAW:", message)
 
 if (!message) {
+  console.log("NO MESSAGE FOUND (status update or empty webhook)")
   return Response.json({ ok: true })
 }
 
-const userText = (message as any).text?.body
+const userText =
+  (message as any)?.text?.body || "Hello, respond naturally to the user."
 const from = (message as any).from
 
+console.log("FROM:", from)
+console.log("USER TEXT:", userText)
+console.log("MESSAGE RAW:", message)
+console.log("MESSAGE TYPE:", message?.type)
 console.log("MESSAGE EXTRACTED:", message)
 console.log("INCOMING MESSAGE TYPE:", message?.type)
+console.log("USER TEXT SENT TO OPENAI:", userText)
 
     const ai =
       await openai.chat.completions.create(
@@ -111,9 +115,12 @@ console.log("AI REPLY:", reply)
   }
 )
 
+console.log("WHATSAPP STATUS:", res.status)
+
 const data = await res.json()
 
 console.log("WHATSAPP API RESPONSE:", data)
+console.log("WHATSAPP RAW RESPONSE:", await res.text())
 
     return Response.json({
       success: true,
