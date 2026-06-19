@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Sidebar from "@/components/Sidebar"
 import ChatMessage from "@/components/ChatMessage"
 import AuthModal from "@/components/AuthModal"
-import { supabase } from "./lib/supabase"
+import { supabase } from "@/lib/supabase"
 import { styles } from "@/styles/chat"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 

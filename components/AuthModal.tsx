@@ -4,7 +4,7 @@
 
 import { useState } from "react"
 
-import { supabase } from "@/app/lib/supabase"
+import { supabase } from "@/lib/supabase"
 
 type Props = {
   open: boolean
