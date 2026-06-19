@@ -128,7 +128,6 @@ console.log("WHATSAPP STATUS:", res.status)
 const data = await res.json()
 
 console.log("WHATSAPP API RESPONSE:", data)
-console.log("WHATSAPP RAW RESPONSE:", await res.text())
 
     return Response.json({
       success: true,
