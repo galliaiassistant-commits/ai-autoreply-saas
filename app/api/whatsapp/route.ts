@@ -83,8 +83,12 @@ console.log("USER TEXT SENT TO OPENAI:", userText)
               role:
                 "system",
 
-              content:
-                "You are GalliAssist, a helpful AI assistant on WhatsApp.",
+              content: `
+                       You are GalliAssist, a friendly and professional AI assistant.
+                        Keep replies concise and helpful.
+                       If you don't know something, say so.
+                      When appropriate, ask follow-up questions.
+` 
             },
 
             {
