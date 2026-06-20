@@ -1,11 +1,6 @@
 import OpenAI from "openai"
 import { supabase } from "@/lib/supabase"
 
-console.log(
-  "OPENAI KEY EXISTS:",
-  !!process.env.OPENAI_API_KEY
-)
-
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
@@ -17,91 +12,125 @@ export async function GET(req: Request) {
   const token = searchParams.get("hub.verify_token")
   const challenge = searchParams.get("hub.challenge")
 
-  console.log("MODE:", mode)
-  console.log("TOKEN FROM META:", token)
-  console.log("TOKEN FROM VERCEL:", process.env.WHATSAPP_VERIFY_TOKEN)
-
   const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN?.trim()
 
   if (mode === "subscribe" && token === verifyToken) {
-    console.log("WEBHOOK VERIFIED SUCCESSFULLY")
     return new Response(challenge, { status: 200 })
   }
-
-  console.log("WEBHOOK VERIFICATION FAILED")
 
   return new Response("Verification failed", { status: 403 })
 }
 
 export async function POST(req: Request) {
-  console.log("🔥 POST HIT")
-  console.log("CONTENT-TYPE:", req.headers.get("content-type"))
-
-  let body
-
   try {
-    body = await req.json()
-  } catch (err) {
-    console.log("FAILED TO PARSE JSON:", err)
-    return new Response("Invalid JSON", { status: 400 })
-  }
+    const body = await req.json()
 
-  console.log("WEBHOOK RECEIVED")
-  console.log(JSON.stringify(body, null, 2))
-
-  try {
     const value = body.entry?.[0]?.changes?.[0]?.value
     const message = value?.messages?.[0]
 
     if (!message) {
-      console.log("NO MESSAGE FOUND")
       return Response.json({ ok: true })
     }
 
-    const userText =
-      (message as any)?.text?.body || "Hello"
-    const from = (message as any).from
+    const userText = message?.text?.body || ""
+    const from = message?.from
 
     console.log("FROM:", from)
-    console.log("USER TEXT:", userText)
+    console.log("TEXT:", userText)
 
-    // =========================
-    // 💾 SAVE USER MESSAGE
-    // =========================
+    // =============================
+    // 1. CREATE USER (SAFE UPSERT)
+    // =============================
+    const { error: userError } = await supabase
+      .from("users")
+      .upsert(
+        {
+          phone_number: from,
+          last_seen: new Date().toISOString(),
+        },
+        { onConflict: "phone_number" }
+      )
+
+    if (userError) {
+      console.log("USER UPSERT ERROR:", userError)
+    }
+
+    // =============================
+    // 2. SAVE NAME (BETTER PARSER)
+    // =============================
+    const lower = userText.toLowerCase()
+
+    if (lower.startsWith("my name is")) {
+      const name = userText
+        .replace(/my name is/i, "")
+        .trim()
+
+      if (name) {
+        const { error: nameError } = await supabase
+          .from("users")
+          .update({
+            name,
+            last_seen: new Date().toISOString(),
+          })
+          .eq("phone_number", from)
+
+        console.log("SAVED NAME:", name)
+        console.log("NAME ERROR:", nameError)
+      }
+    }
+
+    // =============================
+    // 3. LOAD USER PROFILE
+    // =============================
+    const { data: userProfile, error: profileError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("phone_number", from)
+      .maybeSingle()
+
+    console.log("PROFILE:", userProfile)
+    console.log("PROFILE ERROR:", profileError)
+
+    // =============================
+    // 4. SAVE USER MESSAGE
+    // =============================
     await supabase.from("conversations").insert({
       phone_number: from,
       role: "user",
       message: userText,
     })
 
-    // =========================
-    // 🧠 LOAD MEMORY
-    // =========================
+    // =============================
+    // 5. LOAD HISTORY
+    // =============================
     const { data: history } = await supabase
       .from("conversations")
       .select("role, message")
       .eq("phone_number", from)
       .order("created_at", { ascending: false })
-      .limit(10)
+      .limit(6)
 
-    // =========================
-    // 🤖 OPENAI WITH MEMORY
-    // =========================
+    // =============================
+    // 6. OPENAI
+    // =============================
     const messages = [
       {
         role: "system",
         content: `
-You are GalliAssist, a friendly and professional AI assistant.
-Keep replies concise and helpful.
-Remember past conversation context.
+You are GalliAssist.
+
+User:
+Name: ${userProfile?.name || "Unknown"}
+
+Be helpful and short.
         `,
       },
 
       ...(history || [])
         .reverse()
-        .map((msg: any) => ({
-          role: msg.role,
-          content: msg.message,
+        .map((m: any) => ({
+          role: m.role,
+          content: m.message,
         })),
 
       {
@@ -119,20 +148,18 @@ Remember past conversation context.
       ai.choices?.[0]?.message?.content ||
       "Sorry, I couldn't process that."
 
-    console.log("REPLY:", reply)
-
-    // =========================
-    // 💾 SAVE AI RESPONSE
-    // =========================
+    // =============================
+    // 7. SAVE AI RESPONSE
+    // =============================
     await supabase.from("conversations").insert({
       phone_number: from,
       role: "assistant",
       message: reply,
     })
 
-    // =========================
-    // 📩 SEND WHATSAPP MESSAGE
-    // =========================
+    // =============================
+    // 8. SEND WHATSAPP REPLY
+    // =============================
     const res = await fetch(
       `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
       {
@@ -149,10 +176,8 @@ Remember past conversation context.
       }
     )
 
-    console.log("WHATSAPP STATUS:", res.status)
-
     const data = await res.json()
-    console.log("WHATSAPP API RESPONSE:", data)
+    console.log("WHATSAPP RESPONSE:", data)
 
     return Response.json({ success: true })
   } catch (err) {
