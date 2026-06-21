@@ -33,14 +33,11 @@ export async function POST(req: Request) {
       return Response.json({ ok: true })
     }
 
-   console.log("WEBHOOK HIT")
-
-const from = message.from
+   const from = message.from
 const userText = message?.text?.body || ""
 
-console.log("PHONE:", from)
+console.log("FROM:", from)
 console.log("TEXT:", userText)
-
 
 // FIND BUSINESS
 const { data: business, error: businessError } = await supabase
@@ -48,9 +45,6 @@ const { data: business, error: businessError } = await supabase
   .select("*")
   .limit(1)
   .single()
-
-console.log("BUSINESS:", business)
-console.log("BUSINESS ERROR:", businessError)
 
 if (businessError || !business) {
   throw new Error("No business found")
@@ -64,12 +58,9 @@ let { data: customer } = await supabase
   .eq("phone_number", from)
   .maybeSingle()
 
-console.log("CUSTOMER FOUND:", customer)
-
 // CREATE CUSTOMER IF NOT FOUND
 if (!customer) {
 
-  console.log("CREATING NEW CUSTOMER")
 
   const { data: newCustomer, error } = await supabase
     .from("customers")
