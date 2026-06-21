@@ -12,9 +12,10 @@ export async function GET(req: Request) {
   const token = searchParams.get("hub.verify_token")
   const challenge = searchParams.get("hub.challenge")
 
-  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN?.trim()
-
-  if (mode === "subscribe" && token === verifyToken) {
+  if (
+    mode === "subscribe" &&
+    token === process.env.WHATSAPP_VERIFY_TOKEN
+  ) {
     return new Response(challenge, { status: 200 })
   }
 
@@ -32,77 +33,114 @@ export async function POST(req: Request) {
       return Response.json({ ok: true })
     }
 
-    const userText = message?.text?.body || ""
-    const from = message?.from
+   console.log("WEBHOOK HIT")
 
-    console.log("FROM:", from)
-    console.log("TEXT:", userText)
+const from = message.from
+const userText = message?.text?.body || ""
 
-    // =============================
-    // 1. CREATE USER (SAFE UPSERT)
-    // =============================
+console.log("PHONE:", from)
+console.log("TEXT:", userText)
+
+
+// FIND BUSINESS
+const { data: business, error: businessError } = await supabase
+  .from("businesses")
+  .select("*")
+  .limit(1)
+  .single()
+
+console.log("BUSINESS:", business)
+console.log("BUSINESS ERROR:", businessError)
+
+if (businessError || !business) {
+  throw new Error("No business found")
+}
+
+// FIND CUSTOMER
+let { data: customer } = await supabase
+  .from("customers")
+  .select("*")
+  .eq("business_id", business.id)
+  .eq("phone_number", from)
+  .maybeSingle()
+
+console.log("CUSTOMER FOUND:", customer)
+
+// CREATE CUSTOMER IF NOT FOUND
+if (!customer) {
+
+  console.log("CREATING NEW CUSTOMER")
+
+  const { data: newCustomer, error } = await supabase
+    .from("customers")
+    .insert({
+      business_id: business.id,
+      phone_number: from,
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+
+  customer = newCustomer
+}
+
+console.log("CUSTOMER:", customer)
+
+    
+    // =========================
+    // 1. UPSERT USER (ALWAYS CREATE)
+    // =========================
     const { error: userError } = await supabase
       .from("users")
-      .upsert(
-        {
+      .upsert({
+        phone_number: from,
+        last_seen: new Date().toISOString(),
+      })
+
+    console.log("USER ERROR:", userError)
+
+    // =========================
+    // 2. SAVE NAME (FIXED)
+    // =========================
+    if (userText.toLowerCase().startsWith("my name is")) {
+      const name = userText.replace(/my name is/i, "").trim()
+
+      const { error: nameError } = await supabase
+        .from("users")
+        .upsert({
           phone_number: from,
+          name,
           last_seen: new Date().toISOString(),
-        },
-        { onConflict: "phone_number" }
-      )
+        })
 
-    if (userError) {
-      console.log("USER UPSERT ERROR:", userError)
+      console.log("SAVED NAME:", name)
+      console.log("NAME ERROR:", nameError)
     }
 
-    // =============================
-    // 2. SAVE NAME (BETTER PARSER)
-    // =============================
-    const lower = userText.toLowerCase()
-
-    if (lower.startsWith("my name is")) {
-      const name = userText
-        .replace(/my name is/i, "")
-        .trim()
-
-      if (name) {
-        const { error: nameError } = await supabase
-          .from("users")
-          .update({
-            name,
-            last_seen: new Date().toISOString(),
-          })
-          .eq("phone_number", from)
-
-        console.log("SAVED NAME:", name)
-        console.log("NAME ERROR:", nameError)
-      }
-    }
-
-    // =============================
+    // =========================
     // 3. LOAD USER PROFILE
-    // =============================
-    const { data: userProfile, error: profileError } = await supabase
+    // =========================
+    const { data: userProfile } = await supabase
       .from("users")
       .select("*")
       .eq("phone_number", from)
       .maybeSingle()
 
     console.log("PROFILE:", userProfile)
-    console.log("PROFILE ERROR:", profileError)
 
-    // =============================
+    // =========================
     // 4. SAVE USER MESSAGE
-    // =============================
+    // =========================
     await supabase.from("conversations").insert({
       phone_number: from,
       role: "user",
       message: userText,
     })
 
-    // =============================
+    // =========================
     // 5. LOAD HISTORY
-    // =============================
+    // =========================
     const { data: history } = await supabase
       .from("conversations")
       .select("role, message")
@@ -110,19 +148,18 @@ export async function POST(req: Request) {
       .order("created_at", { ascending: false })
       .limit(6)
 
-    // =============================
-    // 6. OPENAI
-    // =============================
+    // =========================
+    // 6. OPENAI MEMORY PROMPT
+    // =========================
     const messages = [
       {
         role: "system",
         content: `
-You are GalliAssist.
+You are Jhyro AI.
 
-User:
-Name: ${userProfile?.name || "Unknown"}
+User name: ${userProfile?.name || "Unknown"}
 
-Be helpful and short.
+Be helpful, short, and natural.
         `,
       },
 
@@ -148,18 +185,18 @@ Be helpful and short.
       ai.choices?.[0]?.message?.content ||
       "Sorry, I couldn't process that."
 
-    // =============================
+    // =========================
     // 7. SAVE AI RESPONSE
-    // =============================
+    // =========================
     await supabase.from("conversations").insert({
       phone_number: from,
       role: "assistant",
       message: reply,
     })
 
-    // =============================
-    // 8. SEND WHATSAPP REPLY
-    // =============================
+    // =========================
+    // 8. SEND WHATSAPP MESSAGE
+    // =========================
     const res = await fetch(
       `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
       {
@@ -181,7 +218,7 @@ Be helpful and short.
 
     return Response.json({ success: true })
   } catch (err) {
-    console.error("POST ERROR:", err)
-    return Response.json({ error: "Something went wrong" })
+    console.error("WEBHOOK ERROR:", err)
+    return Response.json({ error: "failed" })
   }
 }

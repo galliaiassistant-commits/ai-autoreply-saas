@@ -1,7 +1,7 @@
 export default function TypingIndicator() {
   return (
     <div style={styles.typing}>
-      GalliAssist is typing...
+      Jhyro AI is typing...
     </div>
   )
 }

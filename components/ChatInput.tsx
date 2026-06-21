@@ -22,7 +22,7 @@ export default function ChatInput({
               sendMessage()
             }
           }}
-          placeholder="Message GalliAssist..."
+          placeholder="Message Jhyro AI..."
           style={styles.input}
         />
 

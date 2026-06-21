@@ -2,7 +2,7 @@ export default function WelcomeScreen() {
   return (
     <div style={styles.container}>
       <h1 style={styles.title}>
-        Welcome to GalliAssist
+        Welcome to Jhyro AI
       </h1>
 
       <p style={styles.subtitle}>

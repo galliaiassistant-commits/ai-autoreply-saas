@@ -115,7 +115,7 @@ export default function Sidebar({
       <div>
         <div style={styles.topRow}>
           <div style={styles.brand}>
-            🤖 GalliAssist
+            🤖 Jhyro AI
           </div>
 
           <button

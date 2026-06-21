@@ -92,7 +92,7 @@ export default function Home() {
   useEffect(() => {
     const saved =
       localStorage.getItem(
-        "galli-conversations"
+        "jhyro ai-conversations"
       )
 
     if (saved) {
@@ -105,7 +105,7 @@ export default function Home() {
   // SAVE CHATS
   useEffect(() => {
     localStorage.setItem(
-      "galli-conversations",
+      "jhyro ai-conversations",
       JSON.stringify(
         conversations
       )
@@ -568,7 +568,7 @@ export default function Home() {
                   styles.loading
                 }
               >
-                GalliAssist
+                Jhyro AI
                 is
                 thinking...
               </div>
@@ -768,7 +768,7 @@ export default function Home() {
                     generateImage()
                   }
                 }}
-                placeholder="Message GalliAssist..."
+                placeholder="Message Jhyro AI..."
                 style={
                   styles.input
                 }
