@@ -268,6 +268,8 @@ const { data: openBooking } = await supabase
   .limit(1)
   .maybeSingle()
 
+  console.log("OPEN BOOKING:", openBooking)
+
 // =========================
 // BOOKING EXTRACTION
 // =========================
@@ -333,9 +335,17 @@ Rules:
 `,
     },
     {
-      role: "user",
-      content: userText,
-    },
+  role: "user",
+  content: `
+Existing open booking:
+${JSON.stringify(openBooking || null)}
+
+New customer message:
+${userText}
+
+If there is an existing booking with missing details, use the new message to fill in the missing information.
+`,
+},
   ],
 })
 
@@ -346,6 +356,8 @@ try {
 } catch {
   booking = { is_booking: false }
 }
+
+console.log("BOOKING EXTRACTED:", booking)
 
 if (booking.is_booking || openBooking) {
   const service = booking.service || openBooking?.service || null
