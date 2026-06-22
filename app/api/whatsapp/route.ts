@@ -233,6 +233,57 @@ Be helpful, short, and natural.
 
 console.log("AI MESSAGE INSERT ERROR:", aiMsgError)
 
+const memoryExtract = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    {
+      role: "system",
+      content: `
+Extract useful long-term customer memory from this message.
+
+Only save stable facts useful for a business assistant.
+Return ONLY a JSON array.
+
+Example:
+[
+  {
+    "type": "preference",
+    "content": "Customer prefers morning appointments",
+    "confidence": 0.9
+  }
+]
+
+If nothing useful, return [].
+      `,
+    },
+    {
+      role: "user",
+      content: userText,
+    },
+  ],
+})
+
+let extractedMemories: any[] = []
+
+try {
+  extractedMemories = JSON.parse(
+    memoryExtract.choices[0].message.content || "[]"
+  )
+} catch {
+  extractedMemories = []
+}
+
+for (const memory of extractedMemories) {
+  if (!memory.content) continue
+
+  await supabase.from("customer_memory").insert({
+    customer_id: customer.id,
+    type: memory.type || "fact",
+    content: memory.content,
+    confidence: memory.confidence || 0.8,
+  })
+}
+
     // =========================
     // 8. SEND WHATSAPP MESSAGE
     // =========================
