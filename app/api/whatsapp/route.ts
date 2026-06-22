@@ -268,26 +268,60 @@ const bookingExtract = await openai.chat.completions.create({
     {
       role: "system",
       content: `
-Extract booking details from the customer message.
+You extract booking intent from customer messages.
 
-Return ONLY JSON like this:
+Return ONLY valid JSON.
+
+If the customer wants to book, schedule, reserve, make an appointment, or asks for an appointment, return:
+
+{
+  "is_booking": true,
+  "service": null,
+  "booking_time": null,
+  "status": "missing_details"
+}
+
+Examples:
+
+Customer: "I want to book an appointment"
+Return:
+{
+  "is_booking": true,
+  "service": null,
+  "booking_time": null,
+  "status": "missing_details"
+}
+
+Customer: "Can I book a haircut tomorrow at 10am"
+Return:
 {
   "is_booking": true,
   "service": "haircut",
-  "booking_time": "2026-06-25T10:00:00",
+  "booking_time": "2026-06-23T10:00:00",
   "status": "pending"
 }
 
-If this is not a booking request, return:
+Customer: "I'd like to schedule a consultation"
+Return:
+{
+  "is_booking": true,
+  "service": "consultation",
+  "booking_time": null,
+  "status": "missing_details"
+}
+
+If the message is NOT about booking, return:
+
 {
   "is_booking": false
 }
 
 Rules:
-- Only extract if the customer clearly wants to book, schedule, reserve, or make an appointment.
-- If date/time is missing, use null.
-- If service is missing, use null.
-      `,
+- If booking intent exists, is_booking MUST be true.
+- Missing service = null.
+- Missing date/time = null.
+- Return JSON only.
+`,
     },
     {
       role: "user",
