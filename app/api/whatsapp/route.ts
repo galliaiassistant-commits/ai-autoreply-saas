@@ -101,19 +101,32 @@ console.log("CUSTOMER:", customer)
     // 2. SAVE NAME (FIXED)
     // =========================
     if (userText.toLowerCase().startsWith("my name is")) {
-      const name = userText.replace(/my name is/i, "").trim()
+  const name = userText.replace(/my name is/i, "").trim()
 
-      const { error: nameError } = await supabase
-        .from("users")
-        .upsert({
-          phone_number: from,
-          name,
-          last_seen: new Date().toISOString(),
-        })
+  // Update customer name
+  const { error: customerError } = await supabase
+    .from("customers")
+    .update({
+      name,
+    })
+    .eq("id", customer.id)
 
-      console.log("SAVED NAME:", name)
-      console.log("NAME ERROR:", nameError)
-    }
+  console.log("CUSTOMER NAME ERROR:", customerError)
+
+  // Save long-term memory
+  const { error: memoryError } = await supabase
+    .from("customer_memory")
+    .insert({
+      customer_id: customer.id,
+      type: "name",
+      content: name,
+      confidence: 1.0,
+    })
+
+  console.log("MEMORY ERROR:", memoryError)
+
+  console.log("SAVED NAME:", name)
+}
 
     // =========================
     // 3. LOAD USER PROFILE
