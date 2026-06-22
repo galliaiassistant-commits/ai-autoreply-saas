@@ -276,12 +276,28 @@ try {
 for (const memory of extractedMemories) {
   if (!memory.content) continue
 
-  await supabase.from("customer_memory").insert({
-    customer_id: customer.id,
-    type: memory.type || "fact",
-    content: memory.content,
-    confidence: memory.confidence || 0.8,
-  })
+  const { data: existingMemory } = await supabase
+    .from("customer_memory")
+    .select("*")
+    .eq("customer_id", customer.id)
+    .ilike("content", `%${memory.content}%`)
+    .maybeSingle()
+
+  if (existingMemory) {
+    console.log("MEMORY ALREADY EXISTS:", memory.content)
+    continue
+  }
+
+  const { error: saveMemoryError } = await supabase
+    .from("customer_memory")
+    .insert({
+      customer_id: customer.id,
+      type: memory.type || "fact",
+      content: memory.content,
+      confidence: memory.confidence || 0.8,
+    })
+
+  console.log("SAVE MEMORY ERROR:", saveMemoryError)
 }
 
     // =========================
