@@ -259,6 +259,15 @@ Your goal is to provide excellent customer service while helping the business in
     const data = await res.json()
     console.log("WHATSAPP RESPONSE:", data)
 
+const { data: openBooking } = await supabase
+  .from("bookings")
+  .select("*")
+  .eq("customer_id", customer.id)
+  .eq("status", "missing_details")
+  .order("created_at", { ascending: false })
+  .limit(1)
+  .maybeSingle()
+
 // =========================
 // BOOKING EXTRACTION
 // =========================
@@ -338,27 +347,37 @@ try {
   booking = { is_booking: false }
 }
 
-if (booking.is_booking) {
-  if (!booking.service) {
-    console.log("BOOKING MISSING SERVICE")
+if (booking.is_booking || openBooking) {
+  const service = booking.service || openBooking?.service || null
+  const bookingTime = booking.booking_time || openBooking?.booking_time || null
+
+  const status =
+    service && bookingTime
+      ? "pending"
+      : "missing_details"
+
+  if (openBooking) {
+    const { error: updateBookingError } = await supabase
+      .from("bookings")
+      .update({
+        service,
+        booking_time: bookingTime,
+        status,
+      })
+      .eq("id", openBooking.id)
+
+    console.log("UPDATE BOOKING ERROR:", updateBookingError)
+  } else {
+    const { error: bookingError } = await supabase.from("bookings").insert({
+      business_id: business.id,
+      customer_id: customer.id,
+      service,
+      booking_time: bookingTime,
+      status,
+    })
+
+    console.log("BOOKING ERROR:", bookingError)
   }
-
-  if (!booking.booking_time) {
-    console.log("BOOKING MISSING TIME")
-  }
-
-  const { error: bookingError } = await supabase.from("bookings").insert({
-    business_id: business.id,
-    customer_id: customer.id,
-    service: booking.service || null,
-    booking_time: booking.booking_time || null,
-    status:
-      !booking.service || !booking.booking_time
-        ? "missing_details"
-        : "pending",
-  })
-
-  console.log("BOOKING ERROR:", bookingError)
 }
 
     const { error: aiMsgError } = await supabase
