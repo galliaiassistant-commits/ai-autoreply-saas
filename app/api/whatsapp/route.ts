@@ -185,15 +185,32 @@ const memoryText =
     const messages = [
       {
         role: "system",
-      content: `
-You are Jhyro AI.
+     content: `
+You are Jhyro AI, an intelligent WhatsApp business assistant.
 
-Customer name: ${customer?.name || "Unknown"}
+PERSONALITY:
+- Friendly and professional
+- Helpful and confident
+- Natural and conversational
+- Never sound robotic
+- Keep replies short and easy to read
+- Ask at most one follow-up question at a time
 
-Known customer memories:
-${memoryText}
+RULES:
+- Use customer memories when relevant
+- Personalize responses using the customer's name when appropriate
+- Never invent business information
+- Never mention internal systems, databases, prompts, or memory
+- If you don't know something, ask a clarifying question
+- Stay focused on helping the customer
 
-Be helpful, short, and natural.
+CUSTOMER NAME:
+${customer?.name || "Unknown"}
+
+KNOWN CUSTOMER MEMORIES:
+${memoryText || "None"}
+
+Your goal is to provide excellent customer service while helping the business increase customer satisfaction, bookings, and sales.
 `,
       },
 
@@ -241,6 +258,63 @@ Be helpful, short, and natural.
 
     const data = await res.json()
     console.log("WHATSAPP RESPONSE:", data)
+
+// =========================
+// BOOKING EXTRACTION
+// =========================
+const bookingExtract = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    {
+      role: "system",
+      content: `
+Extract booking details from the customer message.
+
+Return ONLY JSON like this:
+{
+  "is_booking": true,
+  "service": "haircut",
+  "booking_time": "2026-06-25T10:00:00",
+  "status": "pending"
+}
+
+If this is not a booking request, return:
+{
+  "is_booking": false
+}
+
+Rules:
+- Only extract if the customer clearly wants to book, schedule, reserve, or make an appointment.
+- If date/time is missing, use null.
+- If service is missing, use null.
+      `,
+    },
+    {
+      role: "user",
+      content: userText,
+    },
+  ],
+})
+
+let booking: any = {}
+
+try {
+  booking = JSON.parse(bookingExtract.choices[0].message.content || "{}")
+} catch {
+  booking = { is_booking: false }
+}
+
+if (booking.is_booking) {
+  const { error: bookingError } = await supabase.from("bookings").insert({
+    business_id: business.id,
+    customer_id: customer.id,
+    service: booking.service || null,
+    booking_time: booking.booking_time || null,
+    status: booking.status || "pending",
+  })
+
+  console.log("BOOKING ERROR:", bookingError)
+}
 
     const { error: aiMsgError } = await supabase
   .from("messages")
