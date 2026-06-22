@@ -222,6 +222,26 @@ Be helpful, short, and natural.
     // =========================
     // 7. SAVE AI RESPONSE
     // =========================
+
+ const res = await fetch(
+      `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: from,
+          text: { body: reply },
+        }),
+      }
+    )
+
+    const data = await res.json()
+    console.log("WHATSAPP RESPONSE:", data)
+
     const { error: aiMsgError } = await supabase
   .from("messages")
   .insert({
@@ -348,24 +368,6 @@ await supabase
     // =========================
     // 8. SEND WHATSAPP MESSAGE
     // =========================
-    const res = await fetch(
-      `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: from,
-          text: { body: reply },
-        }),
-      }
-    )
-
-    const data = await res.json()
-    console.log("WHATSAPP RESPONSE:", data)
 
     return Response.json({ success: true })
   } catch (err) {
