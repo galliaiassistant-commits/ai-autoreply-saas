@@ -172,16 +172,29 @@ console.log("MESSAGE INSERT ERROR:", msgError)
     // =========================
     // 6. OPENAI MEMORY PROMPT
     // =========================
+
+// LOAD CUSTOMER MEMORIES
+const { data: customerMemories } = await supabase
+  .from("customer_memory")
+  .select("type, content")
+  .eq("customer_id", customer.id)
+
+const memoryText =
+  customerMemories?.map((m) => `${m.type}: ${m.content}`).join("\n") || ""
+
     const messages = [
       {
         role: "system",
-        content: `
+      content: `
 You are Jhyro AI.
 
-User name: ${userProfile?.name || "Unknown"}
+Customer name: ${customer?.name || "Unknown"}
+
+Known customer memories:
+${memoryText}
 
 Be helpful, short, and natural.
-        `,
+`,
       },
 
       ...(history || [])
