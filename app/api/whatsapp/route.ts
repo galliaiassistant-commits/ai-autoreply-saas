@@ -26,6 +26,8 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
+    console.log("WEBHOOK STARTED")
+
     const value = body.entry?.[0]?.changes?.[0]?.value
     const message = value?.messages?.[0]
 
@@ -44,7 +46,11 @@ const { data: business, error: businessError } = await supabase
   .from("businesses")
   .select("*")
   .limit(1)
-  .single()
+  .limit(1)
+.maybeSingle()
+
+console.log("BUSINESS:", business)
+console.log("BUSINESS ERROR:", businessError)
 
 if (businessError || !business) {
   throw new Error("No business found")
@@ -129,6 +135,17 @@ console.log("CUSTOMER:", customer)
       message: userText,
     })
 
+const { error: msgError } = await supabase
+  .from("messages")
+  .insert({
+    business_id: business.id,
+    customer_id: customer.id,
+    role: "user",
+    message: userText,
+  })
+
+console.log("MESSAGE INSERT ERROR:", msgError)
+
     // =========================
     // 5. LOAD HISTORY
     // =========================
@@ -179,11 +196,16 @@ Be helpful, short, and natural.
     // =========================
     // 7. SAVE AI RESPONSE
     // =========================
-    await supabase.from("conversations").insert({
-      phone_number: from,
-      role: "assistant",
-      message: reply,
-    })
+    const { error: aiMsgError } = await supabase
+  .from("messages")
+  .insert({
+    business_id: business.id,
+    customer_id: customer.id,
+    role: "assistant",
+    message: reply,
+  })
+
+console.log("AI MESSAGE INSERT ERROR:", aiMsgError)
 
     // =========================
     // 8. SEND WHATSAPP MESSAGE
