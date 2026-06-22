@@ -305,12 +305,23 @@ try {
 }
 
 if (booking.is_booking) {
+  if (!booking.service) {
+    console.log("BOOKING MISSING SERVICE")
+  }
+
+  if (!booking.booking_time) {
+    console.log("BOOKING MISSING TIME")
+  }
+
   const { error: bookingError } = await supabase.from("bookings").insert({
     business_id: business.id,
     customer_id: customer.id,
     service: booking.service || null,
     booking_time: booking.booking_time || null,
-    status: booking.status || "pending",
+    status:
+      !booking.service || !booking.booking_time
+        ? "missing_details"
+        : "pending",
   })
 
   console.log("BOOKING ERROR:", bookingError)
