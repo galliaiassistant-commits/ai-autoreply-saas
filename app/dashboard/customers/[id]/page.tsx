@@ -3,9 +3,9 @@ import { supabase } from "@/lib/supabase"
 export default async function CustomerDetailsPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const customerId = params.id
+  const { id: customerId } = await params
 
   const { data: customer } = await supabase
     .from("customers")
