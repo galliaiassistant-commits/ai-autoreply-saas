@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
+import BookingActions from "./BookingActions"
 
 export default async function HomePage() {
   const { count: customersCount } = await supabase
@@ -92,12 +93,13 @@ const { data: memories } = await supabase
 
         <table className="w-full text-left">
           <thead>
-            <tr className="text-slate-400">
-              <th className="py-3">Name</th>
-              <th>Phone</th>
-              <th>Created</th>
-            </tr>
-          </thead>
+  <tr className="text-slate-400">
+    <th>Service</th>
+    <th>Date/Time</th>
+    <th>Status</th>
+    <th>Actions</th>
+  </tr>
+</thead>
 
           <tbody>
             {customers?.map((customer) => (
@@ -170,6 +172,9 @@ const { data: memories } = await supabase
           <td>
             {booking.status}
           </td>
+          <td>
+  <BookingActions bookingId={booking.id} />
+</td>
         </tr>
       ))}
     </tbody>
