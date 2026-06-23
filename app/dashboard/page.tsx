@@ -24,6 +24,18 @@ export default async function HomePage() {
     .order("created_at", { ascending: false })
     .limit(20)
 
+const { data: bookings } = await supabase
+  .from("bookings")
+  .select("*")
+  .order("created_at", { ascending: false })
+  .limit(20)
+
+const { data: messages } = await supabase
+  .from("messages")
+  .select("*")
+  .order("created_at", { ascending: false })
+  .limit(20)
+
   return (
     <main className="min-h-screen bg-slate-950 text-white p-8">
       <h1 className="text-4xl font-bold mb-8">
@@ -96,6 +108,44 @@ export default async function HomePage() {
           </tbody>
         </table>
       </div>
+
+<div className="mt-10 bg-slate-900 p-6 rounded-2xl">
+  <h2 className="text-2xl font-bold mb-4">
+    Bookings
+  </h2>
+
+  <table className="w-full text-left">
+    <thead>
+      <tr className="text-slate-400">
+        <th>Service</th>
+        <th>Date/Time</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {bookings?.map((booking) => (
+        <tr
+          key={booking.id}
+          className="border-t border-slate-800"
+        >
+          <td className="py-3">
+            {booking.service || "Unknown"}
+          </td>
+
+          <td>
+            {booking.booking_time || "Not set"}
+          </td>
+
+          <td>
+            {booking.status}
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+
     </main>
   )
 }
