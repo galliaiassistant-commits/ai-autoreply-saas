@@ -9,8 +9,6 @@ type Props = {
 export default function BookingActions({ bookingId }: Props) {
   async function updateStatus(status: string) {
 
-console.log("BOOKING ID:", bookingId)
-
     const { error } = await supabase
       .from("bookings")
       .update({ status })
@@ -19,8 +17,6 @@ console.log("BOOKING ID:", bookingId)
       alert(error.message)
       return
     }
-
-    alert(`Updated to ${status}`)
 window.location.reload()
   }
 
