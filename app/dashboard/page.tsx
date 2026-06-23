@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import Link from "next/link"
 
 export default async function HomePage() {
   const { count: customersCount } = await supabase
@@ -105,8 +106,13 @@ const { data: memories } = await supabase
                 className="border-t border-slate-800"
               >
                 <td className="py-3">
-                  {customer.name || "Unknown"}
-                </td>
+  <Link
+    href={`/dashboard/customers/${customer.id}`}
+    className="text-blue-400 hover:text-blue-300"
+  >
+    {customer.name || "Unknown"}
+  </Link>
+</td>
 
                 <td>{customer.phone_number}</td>
 
