@@ -191,7 +191,7 @@ const { data: businessKnowledge, error: businessKnowledgeError } =
   await supabase
     .from("business_knowledge")
     .select("question, answer")
-    .eq("business_id", business.id)
+    .limit(20)
 
 console.log("BUSINESS ID:", business.id)
 console.log("BUSINESS KNOWLEDGE ERROR:", businessKnowledgeError)
