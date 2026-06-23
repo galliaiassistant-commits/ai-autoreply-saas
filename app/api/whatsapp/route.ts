@@ -26,6 +26,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
+    console.log("TEST VERSION 12345")
     console.log("WEBHOOK STARTED")
 
     const value = body.entry?.[0]?.changes?.[0]?.value
@@ -182,20 +183,20 @@ const { data: customerMemories } = await supabase
 const memoryText =
   customerMemories?.map((m) => `${m.type}: ${m.content}`).join("\n") || ""
 
-const { data: businessKnowledge } = await supabase
-  .from("business_knowledge")
-  .select("question, answer")
-  .eq("business_id", business.id)
+const { data: businessKnowledge, error: businessKnowledgeError } =
+  await supabase
+    .from("business_knowledge")
+    .select("question, answer")
+    .eq("business_id", business.id)
+
+console.log("BUSINESS ID:", business.id)
+console.log("BUSINESS KNOWLEDGE ERROR:", businessKnowledgeError)
+console.log("BUSINESS KNOWLEDGE DATA:", businessKnowledge)
 
 const businessKnowledgeText =
   businessKnowledge
     ?.map((item) => `Q: ${item.question}\nA: ${item.answer}`)
     .join("\n\n") || "No business knowledge added yet."
-
-    console.log("=== BUSINESS KNOWLEDGE DEBUG ===")
-console.log(businessKnowledge)
-console.log(businessKnowledgeText)
-console.log("BUSINESS KNOWLEDGE:", businessKnowledgeText)
 
     const messages = [
       {
