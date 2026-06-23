@@ -33,6 +33,8 @@ export async function POST(req: Request) {
     const value = body.entry?.[0]?.changes?.[0]?.value
     const message = value?.messages?.[0]
 
+console.log("MESSAGE OBJECT:", message)
+
     if (!message) {
       return Response.json({ ok: true })
     }
@@ -40,6 +42,7 @@ export async function POST(req: Request) {
    const from = message.from
 const userText = message?.text?.body || ""
 
+console.log("USER TEXT BEFORE AI:", userText)
 console.log("FROM:", from)
 console.log("TEXT:", userText)
 
