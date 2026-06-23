@@ -262,25 +262,6 @@ Your goal is to provide excellent customer service while helping the business in
     // 7. SAVE AI RESPONSE
     // =========================
 
- const res = await fetch(
-      `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: from,
-          text: { body: reply },
-        }),
-      }
-    )
-
-    const data = await res.json()
-    console.log("WHATSAPP RESPONSE:", data)
-
 const { data: openBooking } = await supabase
   .from("bookings")
   .select("*")
@@ -384,6 +365,25 @@ console.log("BOOKING EXTRACTED:", booking)
 if (booking.is_booking || openBooking) {
   const service = booking.service || openBooking?.service || null
   const bookingTime = booking.booking_time || openBooking?.booking_time || null
+
+const res = await fetch(
+  `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+  {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: from,
+      text: { body: reply },
+    }),
+  }
+)
+
+const data = await res.json()
+console.log("WHATSAPP RESPONSE:", data)
 
   const status =
     service && bookingTime
