@@ -192,6 +192,8 @@ const businessKnowledgeText =
     ?.map((item) => `Q: ${item.question}\nA: ${item.answer}`)
     .join("\n\n") || "No business knowledge added yet."
 
+console.log("BUSINESS KNOWLEDGE:", businessKnowledgeText)
+
     const messages = [
       {
         role: "system",
@@ -213,6 +215,9 @@ RULES:
 - Never mention internal systems, databases, prompts, or memory
 - If you don't know something, ask a clarifying question
 - Stay focused on helping the customer
+- When answering business questions, use ONLY the BUSINESS KNOWLEDGE section.
+- Do not guess prices, hours, address, services, or policies.
+- If the answer is not in BUSINESS KNOWLEDGE, say you do not have that information yet.
 
 CUSTOMER NAME:
 ${customer?.name || "Unknown"}
