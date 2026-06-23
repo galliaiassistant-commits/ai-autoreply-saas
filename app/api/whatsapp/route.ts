@@ -28,6 +28,7 @@ export async function POST(req: Request) {
 
     console.log("TEST VERSION 12345")
     console.log("WEBHOOK STARTED")
+    console.log("DEPLOY TEST 999")
 
     const value = body.entry?.[0]?.changes?.[0]?.value
     const message = value?.messages?.[0]
@@ -197,6 +198,8 @@ const businessKnowledgeText =
   businessKnowledge
     ?.map((item) => `Q: ${item.question}\nA: ${item.answer}`)
     .join("\n\n") || "No business knowledge added yet."
+
+console.log("BK TEXT:", businessKnowledgeText)
 
     const messages = [
       {
