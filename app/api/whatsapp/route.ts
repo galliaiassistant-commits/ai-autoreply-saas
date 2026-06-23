@@ -192,6 +192,9 @@ const businessKnowledgeText =
     ?.map((item) => `Q: ${item.question}\nA: ${item.answer}`)
     .join("\n\n") || "No business knowledge added yet."
 
+    console.log("=== BUSINESS KNOWLEDGE DEBUG ===")
+console.log(businessKnowledge)
+console.log(businessKnowledgeText)
 console.log("BUSINESS KNOWLEDGE:", businessKnowledgeText)
 
     const messages = [
