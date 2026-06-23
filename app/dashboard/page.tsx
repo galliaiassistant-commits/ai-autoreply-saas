@@ -42,6 +42,12 @@ const { data: recentMessages } = await supabase
   .order("created_at", { ascending: false })
   .limit(20)
 
+const { data: memories } = await supabase
+  .from("customer_memory")
+  .select("*")
+  .order("created_at", { ascending: false })
+  .limit(20)
+
   return (
     <main className="min-h-screen bg-slate-950 text-white p-8">
       <h1 className="text-4xl font-bold mb-8">
@@ -184,6 +190,43 @@ const { data: recentMessages } = await supabase
             {new Date(
               msg.created_at
             ).toLocaleString()}
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+
+<div className="mt-10 bg-slate-900 p-6 rounded-2xl">
+  <h2 className="text-2xl font-bold mb-4">
+    Customer Memory
+  </h2>
+
+  <table className="w-full text-left">
+    <thead>
+      <tr className="text-slate-400">
+        <th>Type</th>
+        <th>Memory</th>
+        <th>Confidence</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {memories?.map((memory) => (
+        <tr
+          key={memory.id}
+          className="border-t border-slate-800"
+        >
+          <td className="py-3">
+            {memory.type}
+          </td>
+
+          <td>
+            {memory.content}
+          </td>
+
+          <td>
+            {memory.confidence}
           </td>
         </tr>
       ))}
