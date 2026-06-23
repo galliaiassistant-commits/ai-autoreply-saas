@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import KnowledgeForm from "./KnowledgeForm"
 
 export default async function KnowledgePage() {
   const { data: knowledge } = await supabase
@@ -11,6 +12,8 @@ export default async function KnowledgePage() {
       <h1 className="text-4xl font-bold mb-8">
         Business Knowledge
       </h1>
+
+      <KnowledgeForm />
 
       <div className="bg-slate-900 p-6 rounded-2xl">
         <h2 className="text-2xl font-bold mb-4">
