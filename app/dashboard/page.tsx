@@ -146,8 +146,20 @@ const { data: memories } = await supabase
           </td>
 
           <td>
-            {booking.booking_time || "Not set"}
-          </td>
+  <span
+    className={`px-3 py-1 rounded-full text-sm ${
+      booking.status === "pending"
+        ? "bg-yellow-600"
+        : booking.status === "confirmed"
+        ? "bg-blue-600"
+        : booking.status === "completed"
+        ? "bg-green-600"
+        : "bg-red-600"
+    }`}
+  >
+    {booking.status}
+  </span>
+</td>
 
           <td>
             {booking.status}
