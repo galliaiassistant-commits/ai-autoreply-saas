@@ -182,6 +182,16 @@ const { data: customerMemories } = await supabase
 const memoryText =
   customerMemories?.map((m) => `${m.type}: ${m.content}`).join("\n") || ""
 
+const { data: businessKnowledge } = await supabase
+  .from("business_knowledge")
+  .select("question, answer")
+  .eq("business_id", business.id)
+
+const businessKnowledgeText =
+  businessKnowledge
+    ?.map((item) => `Q: ${item.question}\nA: ${item.answer}`)
+    .join("\n\n") || "No business knowledge added yet."
+
     const messages = [
       {
         role: "system",
@@ -210,6 +220,9 @@ ${customer?.name || "Unknown"}
 KNOWN CUSTOMER MEMORIES:
 ${memoryText || "None"}
 
+BUSINESS KNOWLEDGE:
+${businessKnowledgeText}
+
 Your goal is to provide excellent customer service while helping the business increase customer satisfaction, bookings, and sales.
 `,
       },
@@ -232,7 +245,7 @@ Your goal is to provide excellent customer service while helping the business in
       messages,
     })
 
-    const reply =
+    let reply =
       ai.choices?.[0]?.message?.content ||
       "Sorry, I couldn't process that."
 
@@ -406,21 +419,7 @@ if (booking.is_booking || openBooking) {
       `Perfect, I've recorded your booking request for ${service}.`
   }
 
-  await fetch(
-    `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: from,
-        text: { body: bookingFollowUp },
-      }),
-    }
-  )
+  reply = bookingFollowUp
 }
 
     const { error: aiMsgError } = await supabase
