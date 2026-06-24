@@ -24,25 +24,25 @@ export default function BookingActions({ bookingId }: Props) {
   return (
     <div className="flex gap-2 relative z-10">
       <button
-        onClick={() => updateStatus("confirmed")}
-        className="bg-blue-600 px-3 py-1 rounded text-sm"
-      >
-        Confirm
-      </button>
+  onClick={() => updateStatus("confirmed")}
+  className="bg-blue-600 px-3 py-1 rounded text-sm cursor-pointer hover:bg-blue-700"
+>
+  Confirm
+</button>
 
       <button
-        onClick={() => updateStatus("completed")}
-        className="bg-green-600 px-3 py-1 rounded text-sm"
-      >
-        Complete
-      </button>
+  onClick={() => updateStatus("confirmed")}
+  className="bg-blue-600 px-3 py-1 rounded text-sm cursor-pointer hover:bg-blue-700"
+>
+  Complete
+</button>
 
       <button
-        onClick={() => updateStatus("cancelled")}
-        className="bg-red-600 px-3 py-1 rounded text-sm"
-      >
-        Cancel
-      </button>
+  onClick={() => updateStatus("confirmed")}
+  className="bg-blue-600 px-3 py-1 rounded text-sm cursor-pointer hover:bg-blue-700"
+>
+  Cancel
+</button>
     </div>
   )
 }
