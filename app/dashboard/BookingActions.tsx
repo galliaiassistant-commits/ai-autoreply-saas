@@ -8,16 +8,18 @@ type Props = {
 
 export default function BookingActions({ bookingId }: Props) {
   async function updateStatus(status: string) {
-
     const { error } = await supabase
       .from("bookings")
       .update({ status })
       .eq("id", bookingId)
+
     if (error) {
-      alert(error.message)
+      alert("Error: " + error.message)
       return
     }
-window.location.reload()
+
+    alert("Updated to " + status)
+    window.location.reload()
   }
 
   return (
@@ -37,11 +39,11 @@ window.location.reload()
       </button>
 
       <button
-  onClick={() => alert("clicked")}
-  className="bg-red-600 px-3 py-1 rounded text-sm"
->
-  Test
-</button>
+        onClick={() => updateStatus("cancelled")}
+        className="bg-red-600 px-3 py-1 rounded text-sm"
+      >
+        Cancel
+      </button>
     </div>
   )
 }
