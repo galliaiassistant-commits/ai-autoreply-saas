@@ -21,7 +21,7 @@ window.location.reload()
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 relative z-10">
       <button
         onClick={() => updateStatus("confirmed")}
         className="bg-blue-600 px-3 py-1 rounded text-sm"
@@ -37,11 +37,11 @@ window.location.reload()
       </button>
 
       <button
-        onClick={() => updateStatus("cancelled")}
-        className="bg-red-600 px-3 py-1 rounded text-sm"
-      >
-        Cancel
-      </button>
+  onClick={() => alert("clicked")}
+  className="bg-red-600 px-3 py-1 rounded text-sm"
+>
+  Test
+</button>
     </div>
   )
 }

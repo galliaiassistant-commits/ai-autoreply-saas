@@ -172,7 +172,7 @@ const { data: memories } = await supabase
           <td>
             {booking.status}
           </td>
-          <td>
+         <td className="py-3">
   <BookingActions bookingId={booking.id} />
 </td>
         </tr>
