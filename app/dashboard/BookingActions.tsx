@@ -18,7 +18,6 @@ export default function BookingActions({ bookingId }: Props) {
       return
     }
 
-    alert("Updated to " + status)
     window.location.reload()
   }
 
