@@ -29,14 +29,30 @@ export default function BookingActions({ bookingId }: Props) {
     window.location.reload()
   }
 
-  return (
+ return (
   <div className="flex gap-2 relative z-50">
     <button
       type="button"
-      onClick={() => alert("Confirm clicked")}
+      onClick={() => updateStatus("confirmed")}
       className="bg-blue-600 px-3 py-1 rounded text-sm cursor-pointer"
     >
       Confirm
+    </button>
+
+    <button
+      type="button"
+      onClick={() => updateStatus("completed")}
+      className="bg-green-600 px-3 py-1 rounded text-sm cursor-pointer"
+    >
+      Complete
+    </button>
+
+    <button
+      type="button"
+      onClick={() => updateStatus("cancelled")}
+      className="bg-red-600 px-3 py-1 rounded text-sm cursor-pointer"
+    >
+      Cancel
     </button>
   </div>
 )
