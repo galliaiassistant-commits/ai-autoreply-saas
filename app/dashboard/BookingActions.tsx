@@ -31,15 +31,15 @@ export default function BookingActions({ bookingId }: Props) {
 </button>
 
       <button
-  onClick={() => updateStatus("confirmed")}
-  className="bg-blue-600 px-3 py-1 rounded text-sm cursor-pointer hover:bg-blue-700"
+  onClick={() => updateStatus("completed")}
+  className="bg-green-600 px-3 py-1 rounded text-sm cursor-pointer hover:bg-green-700"
 >
   Complete
 </button>
 
       <button
   onClick={() => updateStatus("confirmed")}
-  className="bg-blue-600 px-3 py-1 rounded text-sm cursor-pointer hover:bg-blue-700"
+  className="bg-red-600 px-3 py-1 rounded text-sm cursor-pointer hover:bg-red-700"
 >
   Cancel
 </button>
