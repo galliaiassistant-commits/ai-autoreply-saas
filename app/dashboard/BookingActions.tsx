@@ -26,7 +26,7 @@ export default function BookingActions({ bookingId }: Props) {
       return
     }
 
-    window.location.reload()
+    window.location.href = "/dashboard"
   }
 
  return (
