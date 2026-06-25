@@ -200,10 +200,50 @@ const { data: openBooking } = await supabase
   .from("bookings")
   .select("*")
   .eq("customer_id", customer.id)
-  .in("status", ["missing_details", "pending"])
+  .in("status", ["missing_details", "pending", "confirmed"])
   .order("created_at", { ascending: false })
   .limit(1)
   .maybeSingle()
+
+const lowerText = userText.toLowerCase()
+
+const wantsToCancelBooking =
+  lowerText.includes("cancel") ||
+  lowerText.includes("never mind") ||
+  lowerText.includes("nevermind") ||
+  lowerText.includes("forget it") ||
+  lowerText.includes("don't want") ||
+  lowerText.includes("dont want")
+
+if (wantsToCancelBooking && openBooking) {
+  await supabase
+    .from("bookings")
+    .update({ status: "cancelled" })
+    .eq("id", openBooking.id)
+
+console.log("WANTS CANCEL:", wantsToCancelBooking)
+console.log("OPEN BOOKING FOR CANCEL:", openBooking)
+
+  await fetch(
+    `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: from,
+        text: {
+          body: "No problem, I've cancelled that booking request.",
+        },
+      }),
+    }
+  )
+
+  return Response.json({ success: true })
+}
 
   console.log("OPEN BOOKING:", openBooking)
 
