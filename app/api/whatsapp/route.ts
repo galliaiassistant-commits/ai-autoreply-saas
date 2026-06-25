@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase"
 import { detectAction } from "@/lib/actions"
 import { sendWhatsAppMessage } from "@/lib/whatsapp"
 import { getOpenBooking } from "@/lib/booking"
+import { getCustomerMemoryText } from "@/lib/memory"
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -175,15 +176,9 @@ console.log("MESSAGE INSERT ERROR:", msgError)
     // 6. OPENAI MEMORY PROMPT
     // =========================
 
-// LOAD CUSTOMER MEMORIES
-const { data: customerMemories } = await supabase
-  .from("customer_memory")
-  .select("type, content")
-  .eq("customer_id", customer.id)
-
 const memoryText =
-  customerMemories?.map((m) => `${m.type}: ${m.content}`).join("\n") || ""
-
+  await getCustomerMemoryText(customer.id)
+  
 const { data: businessKnowledge, error: businessKnowledgeError } =
   await supabase
     .from("business_knowledge")
