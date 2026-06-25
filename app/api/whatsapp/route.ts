@@ -327,10 +327,12 @@ Rules:
 - Otherwise status is "missing_details".
 - If customer says yes, yes please, correct, or confirm, treat it as confirmation of current booking.
 - Do NOT assume the service from customer memory or past bookings. Only use a service if the customer says it in the current booking OR it already exists in the open booking.
-
+- If the customer says they want to cancel the current booking, stop booking, never mind, forget it, or don't book anymore, return cancel_booking true.
+- If cancel_booking is true, keep service and booking_time from the open booking if available.
 Return shape:
 {
   "is_booking": true,
+  "cancel_booking": false,
   "service": null,
   "booking_time": null,
   "status": "missing_details"
@@ -366,7 +368,7 @@ try {
 
 console.log("BOOKING EXTRACTED:", booking)
 
-if (booking.is_booking || openBooking) {
+if (!booking.cancel_booking && (booking.is_booking || openBooking)) {
   const service =
     booking.service ?? openBooking?.service ?? null
 
