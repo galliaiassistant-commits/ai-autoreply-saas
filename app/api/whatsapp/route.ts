@@ -247,6 +247,65 @@ console.log("OPEN BOOKING FOR CANCEL:", openBooking)
 
   console.log("OPEN BOOKING:", openBooking)
 
+// =========================
+// ACTION DETECTION
+// =========================
+
+const actionResponse = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    {
+      role: "system",
+      content: `
+You classify customer messages.
+
+Return ONLY JSON.
+
+Example:
+
+{
+  "action":"book_appointment"
+}
+
+Possible actions:
+
+book_appointment
+cancel_booking
+reschedule_booking
+confirm_booking
+business_question
+pricing_question
+opening_hours
+greeting
+goodbye
+thank_you
+complaint
+human_support
+general_chat
+
+Return only one action.
+      `,
+    },
+    {
+      role: "user",
+      content: userText,
+    },
+  ],
+})
+
+let action = "general_chat"
+
+try {
+  action =
+    JSON.parse(
+      actionResponse.choices[0].message.content || "{}"
+    ).action || "general_chat"
+} catch {}
+
+console.log("ACTION:", action)
+
+console.log("ACTION TEST BEFORE MAIN AI")
+
     const messages = [
       {
         role: "system",
@@ -338,6 +397,7 @@ Your goal is to provide excellent customer service while helping the business in
     // =========================
     // 7. SAVE AI RESPONSE
     // =========================
+
 
 // =========================
 // BOOKING EXTRACTION
