@@ -1,5 +1,6 @@
 import OpenAI from "openai"
 import { supabase } from "@/lib/supabase"
+import { detectAction } from "@/lib/actions"
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -302,9 +303,47 @@ try {
     ).action || "general_chat"
 } catch {}
 
+console.log("RAW ACTION RESPONSE:")
+console.log(actionResponse.choices[0].message.content)
 console.log("ACTION:", action)
 
-console.log("ACTION TEST BEFORE MAIN AI")
+
+// =========================
+// QUICK REPLIES
+// =========================
+
+const quickReplies: Record<string, string> = {
+  greeting: `Hi ${customer?.name || "there"}! How can I help you today?`,
+  thank_you: "You're welcome!",
+  goodbye: "Goodbye! Have a great day.",
+}
+
+console.log("QUICK REPLY VALUE:", quickReplies[action])
+
+if (quickReplies[action]) {
+
+  console.log("QUICK REPLY MATCHED:", action)
+
+  await fetch(
+    `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: from,
+        text: {
+          body: quickReplies[action],
+        },
+      }),
+    }
+  )
+
+  return Response.json({ success: true })
+}
 
     const messages = [
       {
@@ -338,6 +377,21 @@ ${customer?.name || "Unknown"}
 
 KNOWN CUSTOMER MEMORIES:
 ${memoryText || "None"}
+
+DETECTED ACTION:
+${action}
+
+Use the detected action as the primary intent for this conversation.
+
+If DETECTED ACTION is:
+- greeting → greet the customer naturally.
+- thank_you → reply politely without asking unnecessary questions.
+- goodbye → say goodbye naturally.
+- opening_hours → answer using BUSINESS SETTINGS.
+- business_question → answer using BUSINESS KNOWLEDGE.
+- book_appointment → continue the booking flow.
+- cancel_booking → cancel the current booking if one exists.
+- reschedule_booking → help the customer change their booking.
 
 ACTIVE BOOKING:
 ${
@@ -384,6 +438,11 @@ Your goal is to provide excellent customer service while helping the business in
         content: userText,
       },
     ]
+
+
+// =========================
+// MAIN AI
+// =========================
 
     const ai = await openai.chat.completions.create({
       model: "gpt-4o-mini",
