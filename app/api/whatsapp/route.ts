@@ -367,6 +367,7 @@ try {
 }
 
 console.log("BOOKING EXTRACTED:", booking)
+console.log("BOOKING JSON:", JSON.stringify(booking, null, 2))
 
 if (!booking.cancel_booking && (booking.is_booking || openBooking)) {
   const service =
