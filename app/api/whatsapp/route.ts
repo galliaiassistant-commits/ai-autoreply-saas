@@ -326,6 +326,7 @@ Rules:
 - If service and full booking_time exist, status is "pending".
 - Otherwise status is "missing_details".
 - If customer says yes, yes please, correct, or confirm, treat it as confirmation of current booking.
+- Do NOT assume the service from customer memory or past bookings. Only use a service if the customer says it in the current booking OR it already exists in the open booking.
 
 Return shape:
 {
@@ -406,16 +407,19 @@ if (booking.is_booking || openBooking) {
     console.log("BOOKING ERROR:", bookingError)
   }
 
-  if (!service) {
-    reply =
-      "Sure, I can help with that. What service would you like to book?"
-  } else if (!bookingTime || !hasRealTime) {
-    reply =
-      `Great. What date and time would you like for the ${service}?`
-  } else {
-    reply =
-      `Perfect, I've recorded your booking request for ${service} on ${bookingTime}.`
-  }
+  if (!openBooking && !booking.service) {
+  reply =
+    "Sure! I'd be happy to help. What service would you like to book?"
+} else if (!service) {
+  reply =
+    "What service would you like to book?"
+} else if (!bookingTime || !hasRealTime) {
+  reply =
+    `Great! What date and time would you like for your ${service}?`
+} else {
+  reply =
+    `Perfect! I've recorded your booking request for a ${service} on ${bookingTime}.`
+}
 }
 
 // =========================
