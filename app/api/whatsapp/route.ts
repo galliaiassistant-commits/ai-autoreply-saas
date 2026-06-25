@@ -299,8 +299,6 @@ Your goal is to provide excellent customer service while helping the business in
     // 7. SAVE AI RESPONSE
     // =========================
 
-
-
 // =========================
 // BOOKING EXTRACTION
 // =========================
@@ -310,73 +308,50 @@ const bookingExtract = await openai.chat.completions.create({
     {
       role: "system",
       content: `
-You extract booking intent from customer messages.
+You extract booking intent and booking details from customer messages.
 
 Return ONLY valid JSON.
 
-If the customer wants to book, schedule, reserve, make an appointment, or asks for an appointment, return:
-
-{
-  "is_booking": true,
-  "service": null,
-  "booking_time": null,
-  "status": "missing_details"
-}
-
-Examples:
-
-Customer: "I want to book an appointment"
-Return:
-{
-  "is_booking": true,
-  "service": null,
-  "booking_time": null,
-  "status": "missing_details"
-}
-
-Customer: "Can I book a haircut tomorrow at 10am"
-Return:
-{
-  "is_booking": true,
-  "service": "haircut",
-  "booking_time": "2026-06-23T10:00:00",
-  "status": "pending"
-}
-
-Customer: "I'd like to schedule a consultation"
-Return:
-{
-  "is_booking": true,
-  "service": "consultation",
-  "booking_time": null,
-  "status": "missing_details"
-}
-
-If the message is NOT about booking, return:
-
+If this is not about booking, return:
 {
   "is_booking": false
 }
 
 Rules:
-- If booking intent exists, is_booking MUST be true.
-- Missing service = null.
-- Missing date/time = null.
-- Return JSON only.
+- Use the Existing open booking as context.
+- Keep existing service unless customer changes it.
+- booking_time must include BOTH date and time.
+- Never return 00:00:00 unless customer said midnight.
+- If date or time is missing, booking_time must be null.
+- If service and full booking_time exist, status is "pending".
+- Otherwise status is "missing_details".
+- If customer says yes, yes please, correct, or confirm, treat it as confirmation of current booking.
+
+Return shape:
+{
+  "is_booking": true,
+  "service": null,
+  "booking_time": null,
+  "status": "missing_details"
+}
 `,
     },
     {
-  role: "user",
-  content: `
+      role: "user",
+      content: `
 Existing open booking:
 ${JSON.stringify(openBooking || null)}
 
-New customer message:
+Current customer message:
 ${userText}
 
-If there is an existing booking with missing details, use the new message to fill in the missing information.
+Today's date:
+${new Date().toISOString()}
+
+Merge the customer message with the existing booking.
+Preserve existing booking information unless the customer changes it.
 `,
-},
+    },
   ],
 })
 
@@ -391,9 +366,61 @@ try {
 console.log("BOOKING EXTRACTED:", booking)
 
 if (booking.is_booking || openBooking) {
-  const service = booking.service || openBooking?.service || null
-  const bookingTime = booking.booking_time || openBooking?.booking_time || null
+  const service =
+    booking.service ?? openBooking?.service ?? null
 
+  const bookingTime =
+    booking.booking_time ?? openBooking?.booking_time ?? null
+
+  const hasRealTime =
+    bookingTime &&
+    !String(bookingTime).includes("00:00:00")
+
+  const status =
+    service && bookingTime && hasRealTime
+      ? "pending"
+      : "missing_details"
+
+  if (openBooking) {
+    const { error: updateBookingError } = await supabase
+      .from("bookings")
+      .update({
+        service,
+        booking_time: bookingTime,
+        status,
+      })
+      .eq("id", openBooking.id)
+
+    console.log("UPDATE BOOKING ERROR:", updateBookingError)
+  } else {
+    const { error: bookingError } = await supabase
+      .from("bookings")
+      .insert({
+        business_id: business.id,
+        customer_id: customer.id,
+        service,
+        booking_time: bookingTime,
+        status,
+      })
+
+    console.log("BOOKING ERROR:", bookingError)
+  }
+
+  if (!service) {
+    reply =
+      "Sure, I can help with that. What service would you like to book?"
+  } else if (!bookingTime || !hasRealTime) {
+    reply =
+      `Great. What date and time would you like for the ${service}?`
+  } else {
+    reply =
+      `Perfect, I've recorded your booking request for ${service} on ${bookingTime}.`
+  }
+}
+
+// =========================
+// SEND WHATSAPP MESSAGE
+// =========================
 const res = await fetch(
   `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
   {
@@ -412,52 +439,6 @@ const res = await fetch(
 
 const data = await res.json()
 console.log("WHATSAPP RESPONSE:", data)
-
-  const status =
-    service && bookingTime
-      ? "pending"
-      : "missing_details"
-
-  if (openBooking) {
-    const { error: updateBookingError } = await supabase
-      .from("bookings")
-      .update({
-        service,
-        booking_time: bookingTime,
-        status,
-      })
-      .eq("id", openBooking.id)
-
-    console.log("UPDATE BOOKING ERROR:", updateBookingError)
-  } else {
-    const { error: bookingError } = await supabase.from("bookings").insert({
-      business_id: business.id,
-      customer_id: customer.id,
-      service,
-      booking_time: bookingTime,
-      status,
-    })
-
-    console.log("BOOKING ERROR:", bookingError)
-
-
-  }
-
-  let bookingFollowUp = ""
-
-  if (!service) {
-    bookingFollowUp =
-      "Sure, I can help with that. What service would you like to book?"
-  } else if (!bookingTime) {
-    bookingFollowUp =
-      `Great. What date and time would you like for the ${service}?`
-  } else {
-    bookingFollowUp =
-      `Perfect, I've recorded your booking request for ${service}.`
-  }
-
-  reply = bookingFollowUp
-}
 
     const { error: aiMsgError } = await supabase
   .from("messages")
