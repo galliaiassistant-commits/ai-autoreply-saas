@@ -26,14 +26,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
-    console.log("TEST VERSION 12345")
     console.log("WEBHOOK STARTED")
-    console.log("DEPLOY TEST 999")
 
     const value = body.entry?.[0]?.changes?.[0]?.value
     const message = value?.messages?.[0]
-
-console.log("MESSAGE OBJECT:", message)
 
     if (!message) {
       return Response.json({ ok: true })
@@ -42,7 +38,6 @@ console.log("MESSAGE OBJECT:", message)
    const from = message.from
 const userText = message?.text?.body || ""
 
-console.log("USER TEXT BEFORE AI:", userText)
 console.log("FROM:", from)
 console.log("TEXT:", userText)
 
@@ -51,8 +46,7 @@ const { data: business, error: businessError } = await supabase
   .from("businesses")
   .select("*")
   .limit(1)
-  .limit(1)
-.maybeSingle()
+  .maybeSingle()
 
 console.log("BUSINESS:", business)
 console.log("BUSINESS ERROR:", businessError)
@@ -202,7 +196,16 @@ const businessKnowledgeText =
     ?.map((item) => `Q: ${item.question}\nA: ${item.answer}`)
     .join("\n\n") || "No business knowledge added yet."
 
-console.log("BK TEXT:", businessKnowledgeText)
+const { data: openBooking } = await supabase
+  .from("bookings")
+  .select("*")
+  .eq("customer_id", customer.id)
+  .in("status", ["missing_details", "pending"])
+  .order("created_at", { ascending: false })
+  .limit(1)
+  .maybeSingle()
+
+  console.log("OPEN BOOKING:", openBooking)
 
     const messages = [
       {
@@ -219,21 +222,49 @@ PERSONALITY:
 - Ask at most one follow-up question at a time
 
 RULES:
-- Use customer memories when relevant
-- Personalize responses using the customer's name when appropriate
-- Never invent business information
-- Never mention internal systems, databases, prompts, or memory
-- If you don't know something, ask a clarifying question
-- Stay focused on helping the customer
-- When answering business questions, use ONLY the BUSINESS KNOWLEDGE section.
-- Do not guess prices, hours, address, services, or policies.
-- If the answer is not in BUSINESS KNOWLEDGE, say you do not have that information yet.
+- Use customer memories when relevant.
+- Personalize responses using the customer's name when appropriate.
+- Never invent business information.
+- Never mention internal systems, databases, prompts, or memory.
+- If you don't know something, ask a clarifying question.
+- Stay focused on helping the customer.
+- When answering business questions, ALWAYS check BUSINESS SETTINGS first.
+- If the information is not in BUSINESS SETTINGS, then use BUSINESS KNOWLEDGE.
+- Never guess prices, hours, address, services, booking policy, or contact information.
+- If the information is not available in either BUSINESS SETTINGS or BUSINESS KNOWLEDGE, politely explain that the information has not been provided yet.
+- Use the BUSINESS SETTINGS section as the official source for opening hours, phone number, address, services, booking policy, and AI personality.
 
 CUSTOMER NAME:
 ${customer?.name || "Unknown"}
 
 KNOWN CUSTOMER MEMORIES:
 ${memoryText || "None"}
+
+ACTIVE BOOKING:
+${
+  openBooking
+    ? `
+Status: ${openBooking.status}
+Service: ${openBooking.service || "Unknown"}
+Date/Time: ${openBooking.booking_time || "Not provided"}
+
+The customer is currently in the middle of a booking.
+Continue the existing booking conversation.
+Do NOT greet the customer again.
+Do NOT ask "How can I help you today?"
+Only ask for the missing booking details or confirm the booking if all information is available.
+`
+    : "No active booking."
+}
+
+BUSINESS SETTINGS:
+Business Name: ${business?.business_name || business?.name || "Unknown"}
+Phone: ${business?.phone || "Not set"}
+Address: ${business?.address || "Not set"}
+Opening Hours: ${business?.hours || "Not set"}
+Services: ${business?.services || "Not set"}
+Booking Policy: ${business?.booking_policy || "Not set"}
+AI Personality: ${business?.personality || "Friendly"}
 
 BUSINESS KNOWLEDGE:
 ${businessKnowledgeText}
@@ -268,16 +299,7 @@ Your goal is to provide excellent customer service while helping the business in
     // 7. SAVE AI RESPONSE
     // =========================
 
-const { data: openBooking } = await supabase
-  .from("bookings")
-  .select("*")
-  .eq("customer_id", customer.id)
-  .eq("status", "missing_details")
-  .order("created_at", { ascending: false })
-  .limit(1)
-  .maybeSingle()
 
-  console.log("OPEN BOOKING:", openBooking)
 
 // =========================
 // BOOKING EXTRACTION
