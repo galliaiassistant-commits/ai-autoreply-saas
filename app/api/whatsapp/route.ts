@@ -4,6 +4,7 @@ import { detectAction } from "@/lib/actions"
 import { sendWhatsAppMessage } from "@/lib/whatsapp"
 import { getOpenBooking } from "@/lib/booking"
 import { getCustomerMemoryText } from "@/lib/memory"
+import { generateReply } from "@/lib/ai"
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -178,7 +179,7 @@ console.log("MESSAGE INSERT ERROR:", msgError)
 
 const memoryText =
   await getCustomerMemoryText(customer.id)
-  
+
 const { data: businessKnowledge, error: businessKnowledgeError } =
   await supabase
     .from("business_knowledge")
@@ -435,15 +436,11 @@ Your goal is to provide excellent customer service while helping the business in
 // MAIN AI
 // =========================
 
-    const ai = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages,
-    })
-
-    let reply =
-      ai.choices?.[0]?.message?.content ||
-      "Sorry, I couldn't process that."
-
+  const ai = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages,
+})
+let reply = await generateReply(openai, messages)
     // =========================
     // 7. SAVE AI RESPONSE
     // =========================
