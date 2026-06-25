@@ -14,8 +14,6 @@ export default function BookingActions({ bookingId }: Props) {
       .eq("id", bookingId)
       .select()
 
-    console.log("UPDATED BOOKING:", data)
-
     if (error) {
       alert("Error: " + error.message)
       return

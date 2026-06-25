@@ -1,6 +1,8 @@
 import OpenAI from "openai"
 import { supabase } from "@/lib/supabase"
 import { detectAction } from "@/lib/actions"
+import { sendWhatsAppMessage } from "@/lib/whatsapp"
+import { getOpenBooking } from "@/lib/booking"
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -197,14 +199,8 @@ const businessKnowledgeText =
     ?.map((item) => `Q: ${item.question}\nA: ${item.answer}`)
     .join("\n\n") || "No business knowledge added yet."
 
-const { data: openBooking } = await supabase
-  .from("bookings")
-  .select("*")
-  .eq("customer_id", customer.id)
-  .in("status", ["missing_details", "pending", "confirmed"])
-  .order("created_at", { ascending: false })
-  .limit(1)
-  .maybeSingle()
+const openBooking =
+  await getOpenBooking(customer.id)
 
 const lowerText = userText.toLowerCase()
 
@@ -587,21 +583,7 @@ if (!booking.cancel_booking && (booking.is_booking || openBooking)) {
 // =========================
 // SEND WHATSAPP MESSAGE
 // =========================
-const res = await fetch(
-  `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-  {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: from,
-      text: { body: reply },
-    }),
-  }
-)
+const res = await sendWhatsAppMessage(from, reply)
 
 const data = await res.json()
 console.log("WHATSAPP RESPONSE:", data)
