@@ -370,7 +370,11 @@ Your goal is to provide excellent customer service while helping the business in
 // MAIN AI
 // =========================
 
-let reply = await generateReply(openai, messages)
+let reply = ""
+
+if (!useBooking) {
+  reply = await generateReply(openai, messages)
+}
     // =========================
     // 7. SAVE AI RESPONSE
     // =========================
