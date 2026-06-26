@@ -229,6 +229,11 @@ console.log("ACTION:", action)
 const useBooking =
   shouldUseBooking(action)
 
+const isNewBookingRequest =
+  action === "book_appointment" &&
+  !lowerText.includes("confirm") &&
+  !lowerText.includes("yes")
+
 // =========================
 // QUICK REPLIES
 // =========================
@@ -416,7 +421,7 @@ Return shape:
       role: "user",
       content: `
 Existing open booking:
-${JSON.stringify(useBooking ? openBooking : null)}
+${JSON.stringify(isNewBookingRequest ? null : openBooking)}
 
 Current customer message:
 ${userText}
@@ -444,10 +449,10 @@ console.log("BOOKING JSON:", JSON.stringify(booking, null, 2))
 
 if (!booking.cancel_booking && (booking.is_booking || openBooking)) {
   const service =
-   booking.service ?? (useBooking ? openBooking?.service : null) ?? null
+   booking.service ?? (isNewBookingRequest ? null : openBooking?.service) ?? null
 
   const bookingTime =
-    booking.booking_time ?? (useBooking ? openBooking?.booking_time : null) ?? null
+    booking.booking_time ?? (isNewBookingRequest ? null : openBooking?.booking_time) ?? null
 
   const hasRealTime =
     bookingTime &&
