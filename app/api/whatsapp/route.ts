@@ -416,7 +416,7 @@ Return shape:
       role: "user",
       content: `
 Existing open booking:
-${JSON.stringify(openBooking || null)}
+${JSON.stringify(useBooking ? openBooking : null)}
 
 Current customer message:
 ${userText}
@@ -444,10 +444,10 @@ console.log("BOOKING JSON:", JSON.stringify(booking, null, 2))
 
 if (!booking.cancel_booking && (booking.is_booking || openBooking)) {
   const service =
-    booking.service ?? openBooking?.service ?? null
+   booking.service ?? (useBooking ? openBooking?.service : null) ?? null
 
   const bookingTime =
-    booking.booking_time ?? openBooking?.booking_time ?? null
+    booking.booking_time ?? (useBooking ? openBooking?.booking_time : null) ?? null
 
   const hasRealTime =
     bookingTime &&
