@@ -227,7 +227,7 @@ const action = await detectAction(
 console.log("ACTION:", action)
 
 const useBooking =
-  shouldUseBooking(action)
+  shouldUseBooking(action) || !!openBooking
 
 const isNewBookingRequest =
   action === "book_appointment" &&
