@@ -233,11 +233,7 @@ const useBooking =
 // QUICK REPLIES
 // =========================
 
-const quickReplies: Record<string, string> = {
-  greeting: `Hi ${customer?.name || "there"}! How can I help you today?`,
-  thank_you: `You're welcome, ${customer?.name || "there"}! 😊`,
-  goodbye: "Goodbye! Have a great day! 👋",
-}
+
 
 const friendlyClosingReplies = [
   "you too",
@@ -256,6 +252,11 @@ if (friendlyClosingReplies.includes(userText.toLowerCase().trim())) {
 }
 
 const quickReply = getQuickReply(action, customer?.name)
+
+if (quickReply) {
+  await sendWhatsAppMessage(from, quickReply)
+  return Response.json({ success: true })
+}
 
 if (quickReply) {
   await sendWhatsAppMessage(from, quickReply)
