@@ -7,6 +7,11 @@ import { generateReply } from "@/lib/ai"
 import { getBusiness, getBusinessKnowledgeText, } from "@/lib/business"
 import { updateCustomerSummary } from "@/lib/summaries"
 import { detectAction } from "@/lib/actions"
+import {
+  shouldUseMainAI,
+  shouldUseBooking,
+  getQuickReply,
+} from "@/lib/router"
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -221,14 +226,8 @@ const action = await detectAction(
 
 console.log("ACTION:", action)
 
-const bookingActions = [
-  "book_appointment",
-  "confirm_booking",
-  "reschedule_booking",
-]
-
-const shouldUseBooking =
-  bookingActions.includes(action)
+const useBooking =
+  shouldUseBooking(action)
 
 // =========================
 // QUICK REPLIES
@@ -236,21 +235,31 @@ const shouldUseBooking =
 
 const quickReplies: Record<string, string> = {
   greeting: `Hi ${customer?.name || "there"}! How can I help you today?`,
-  thank_you: "You're welcome!",
-  goodbye: "Goodbye! Have a great day.",
+  thank_you: `You're welcome, ${customer?.name || "there"}! 😊`,
+  goodbye: "Goodbye! Have a great day! 👋",
 }
 
-console.log("QUICK REPLY VALUE:", quickReplies[action])
+const friendlyClosingReplies = [
+  "you too",
+  "same to you",
+  "thanks you too",
+  "thank you you too",
+]
 
-if (quickReplies[action]) {
-
-  console.log("QUICK REPLY MATCHED:", action)
-
+if (friendlyClosingReplies.includes(userText.toLowerCase().trim())) {
   await sendWhatsAppMessage(
-  from,
-  quickReplies[action]
-)
-return Response.json({ success: true })
+    from,
+    "Thank you! Take care 😊"
+  )
+
+  return Response.json({ success: true })
+}
+
+const quickReply = getQuickReply(action, customer?.name)
+
+if (quickReply) {
+  await sendWhatsAppMessage(from, quickReply)
+  return Response.json({ success: true })
 }
     const messages = [
       {
@@ -364,7 +373,7 @@ let reply = await generateReply(openai, messages)
 // =========================
 // BOOKING EXTRACTION
 // =========================
-if (shouldUseBooking) {
+if (useBooking) {
   const bookingExtract = await openai.chat.completions.create({
   model: "gpt-4o-mini",
   messages: [
