@@ -1,10 +1,12 @@
 import OpenAI from "openai"
 import { supabase } from "@/lib/supabase"
-import { detectAction } from "@/lib/actions"
 import { sendWhatsAppMessage } from "@/lib/whatsapp"
 import { getOpenBooking } from "@/lib/booking"
 import { getCustomerMemoryText } from "@/lib/memory"
 import { generateReply } from "@/lib/ai"
+import { getBusiness, getBusinessKnowledgeText, } from "@/lib/business"
+import { updateCustomerSummary } from "@/lib/summaries"
+import { detectAction } from "@/lib/actions"
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -47,18 +49,16 @@ console.log("FROM:", from)
 console.log("TEXT:", userText)
 
 // FIND BUSINESS
-const { data: business, error: businessError } = await supabase
-  .from("businesses")
-  .select("*")
-  .limit(1)
-  .maybeSingle()
+const business = await getBusiness()
 
-console.log("BUSINESS:", business)
-console.log("BUSINESS ERROR:", businessError)
-
-if (businessError || !business) {
+if (!business) {
   throw new Error("No business found")
 }
+const businessKnowledgeText =
+  await getBusinessKnowledgeText()
+
+console.log("BUSINESS ID:", business.id)
+console.log("BUSINESS KNOWLEDGE LOADED")
 
 // FIND CUSTOMER
 let { data: customer } = await supabase
@@ -180,21 +180,6 @@ console.log("MESSAGE INSERT ERROR:", msgError)
 const memoryText =
   await getCustomerMemoryText(customer.id)
 
-const { data: businessKnowledge, error: businessKnowledgeError } =
-  await supabase
-    .from("business_knowledge")
-    .select("question, answer")
-    .limit(20)
-
-console.log("BUSINESS ID:", business.id)
-console.log("BUSINESS KNOWLEDGE ERROR:", businessKnowledgeError)
-console.log("BUSINESS KNOWLEDGE DATA:", businessKnowledge)
-
-const businessKnowledgeText =
-  businessKnowledge
-    ?.map((item) => `Q: ${item.question}\nA: ${item.answer}`)
-    .join("\n\n") || "No business knowledge added yet."
-
 const openBooking =
   await getOpenBooking(customer.id)
 
@@ -217,88 +202,33 @@ if (wantsToCancelBooking && openBooking) {
 console.log("WANTS CANCEL:", wantsToCancelBooking)
 console.log("OPEN BOOKING FOR CANCEL:", openBooking)
 
-  await fetch(
-    `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: from,
-        text: {
-          body: "No problem, I've cancelled that booking request.",
-        },
-      }),
-    }
-  )
-
-  return Response.json({ success: true })
+  await sendWhatsAppMessage(
+  from,
+  "No problem, I've cancelled that booking request."
+)
+return Response.json({ success: true })
 }
-
   console.log("OPEN BOOKING:", openBooking)
 
 // =========================
 // ACTION DETECTION
 // =========================
 
-const actionResponse = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages: [
-    {
-      role: "system",
-      content: `
-You classify customer messages.
+const action = await detectAction(
+  openai,
+  userText
+)
 
-Return ONLY JSON.
-
-Example:
-
-{
-  "action":"book_appointment"
-}
-
-Possible actions:
-
-book_appointment
-cancel_booking
-reschedule_booking
-confirm_booking
-business_question
-pricing_question
-opening_hours
-greeting
-goodbye
-thank_you
-complaint
-human_support
-general_chat
-
-Return only one action.
-      `,
-    },
-    {
-      role: "user",
-      content: userText,
-    },
-  ],
-})
-
-let action = "general_chat"
-
-try {
-  action =
-    JSON.parse(
-      actionResponse.choices[0].message.content || "{}"
-    ).action || "general_chat"
-} catch {}
-
-console.log("RAW ACTION RESPONSE:")
-console.log(actionResponse.choices[0].message.content)
 console.log("ACTION:", action)
 
+const bookingActions = [
+  "book_appointment",
+  "confirm_booking",
+  "reschedule_booking",
+]
+
+const shouldUseBooking =
+  bookingActions.includes(action)
 
 // =========================
 // QUICK REPLIES
@@ -316,27 +246,12 @@ if (quickReplies[action]) {
 
   console.log("QUICK REPLY MATCHED:", action)
 
-  await fetch(
-    `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: from,
-        text: {
-          body: quickReplies[action],
-        },
-      }),
-    }
-  )
-
-  return Response.json({ success: true })
+  await sendWhatsAppMessage(
+  from,
+  quickReplies[action]
+)
+return Response.json({ success: true })
 }
-
     const messages = [
       {
         role: "system",
@@ -387,7 +302,11 @@ If DETECTED ACTION is:
 
 ACTIVE BOOKING:
 ${
-  openBooking
+  (
+    action === "book_appointment" ||
+    action === "confirm_booking" ||
+    action === "reschedule_booking"
+  ) && openBooking
     ? `
 Status: ${openBooking.status}
 Service: ${openBooking.service || "Unknown"}
@@ -436,10 +355,6 @@ Your goal is to provide excellent customer service while helping the business in
 // MAIN AI
 // =========================
 
-  const ai = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages,
-})
 let reply = await generateReply(openai, messages)
     // =========================
     // 7. SAVE AI RESPONSE
@@ -449,7 +364,8 @@ let reply = await generateReply(openai, messages)
 // =========================
 // BOOKING EXTRACTION
 // =========================
-const bookingExtract = await openai.chat.completions.create({
+if (shouldUseBooking) {
+  const bookingExtract = await openai.chat.completions.create({
   model: "gpt-4o-mini",
   messages: [
     {
@@ -571,14 +487,11 @@ if (!booking.cancel_booking && (booking.is_booking || openBooking)) {
     `Perfect! I've recorded your booking request for a ${service} on ${bookingTime}.`
 }
 }
-
+}
 // =========================
 // SEND WHATSAPP MESSAGE
 // =========================
-const res = await sendWhatsAppMessage(from, reply)
-
-const data = await res.json()
-console.log("WHATSAPP RESPONSE:", data)
+await sendWhatsAppMessage(from, reply)
 
     const { error: aiMsgError } = await supabase
   .from("messages")
@@ -658,50 +571,12 @@ for (const memory of extractedMemories) {
   console.log("SAVE MEMORY ERROR:", saveMemoryError)
 }
 
-const { data: existingSummary } = await supabase
-  .from("customer_summaries")
-  .select("summary")
-  .eq("customer_id", customer.id)
-  .maybeSingle()
-
-const summaryPrompt = `
-Current summary:
-${existingSummary?.summary || "No summary yet"}
-
-New message:
-${userText}
-
-Known memories:
-${memoryText}
-
-Update the summary. Keep it short and useful for a business assistant.
-`
-
-const summaryResponse = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages: [
-    {
-      role: "system",
-      content:
-        "Create a concise customer summary for future conversations.",
-    },
-    {
-      role: "user",
-      content: summaryPrompt,
-    },
-  ],
-})
-
-const updatedSummary =
-  summaryResponse.choices[0].message.content || ""
-
-await supabase
-  .from("customer_summaries")
-  .upsert({
-    customer_id: customer.id,
-    summary: updatedSummary,
-    updated_at: new Date().toISOString(),
-  })
+await updateCustomerSummary(
+  openai,
+  customer.id,
+  userText,
+  memoryText
+)
 
     // =========================
     // 8. SEND WHATSAPP MESSAGE
