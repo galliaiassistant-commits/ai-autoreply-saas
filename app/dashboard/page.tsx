@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Clock,
 } from "lucide-react"
+import { PageHeader } from "@/components/dashboard/PageHeader"
 
 export default async function HomePage() {
   const { count: customersCount } = await supabase
@@ -59,9 +60,10 @@ const { data: memories } = await supabase
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-8">
-      <h1 className="text-4xl font-bold mb-8">
-        Jhyro AI Dashboard
-      </h1>
+     <PageHeader
+  title="Jhyro AI Dashboard"
+  description="Monitor your customers, bookings, messages and AI performance."
+/>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
   <StatCard
