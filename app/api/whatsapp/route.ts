@@ -6,6 +6,7 @@ import {
   updateBooking,
   createBooking,
   extractBooking,
+  saveBookingAndGetReply,
 } from "@/lib/booking"
 import { getCustomerMemoryText } from "@/lib/memory"
 import { generateReply } from "@/lib/ai"
@@ -419,54 +420,14 @@ if (useBooking) {
 console.log("BOOKING EXTRACTED:", booking)
 console.log("BOOKING JSON:", JSON.stringify(booking, null, 2))
 
-console.log("BOOKING EXTRACTED:", booking)
-console.log("BOOKING JSON:", JSON.stringify(booking, null, 2))
-
 if (!booking.cancel_booking && (booking.is_booking || openBooking)) {
-  const service =
-    booking.service ?? (isNewBookingRequest ? null : openBooking?.service) ?? null
-
-  const bookingTime =
-    booking.booking_time ?? (isNewBookingRequest ? null : openBooking?.booking_time) ?? null
-
-  const hasRealTime =
-    bookingTime &&
-    !String(bookingTime).includes("00:00:00")
-
-  const status =
-    service && bookingTime && hasRealTime
-      ? "pending"
-      : "missing_details"
-
-  if (openBooking) {
-    await updateBooking(openBooking.id, {
-      service,
-      booking_time: bookingTime,
-      status,
-    })
-  } else {
-    await createBooking({
-      business_id: business.id,
-      customer_id: customer.id,
-      service,
-      booking_time: bookingTime,
-      status,
-    })
-  }
-
-  if (!openBooking && !booking.service) {
-    reply =
-      "Sure! I'd be happy to help. What service would you like to book?"
-  } else if (!service) {
-    reply =
-      "What service would you like to book?"
-  } else if (!bookingTime || !hasRealTime) {
-    reply =
-      `Great! What date and time would you like for your ${service}?`
-  } else {
-    reply =
-      `Perfect! I've recorded your booking request for a ${service} on ${bookingTime}.`
-  }
+  reply = await saveBookingAndGetReply({
+    businessId: business.id,
+    customerId: customer.id,
+    openBooking,
+    booking,
+    isNewBookingRequest,
+  })
 }
 }
 // =========================

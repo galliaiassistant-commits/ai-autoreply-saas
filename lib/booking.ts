@@ -132,3 +132,62 @@ Preserve existing booking information unless the customer changes it.
     return { is_booking: false }
   }
 }
+
+export async function saveBookingAndGetReply({
+  businessId,
+  customerId,
+  openBooking,
+  booking,
+  isNewBookingRequest,
+}: {
+  businessId: string
+  customerId: string
+  openBooking: any
+  booking: any
+  isNewBookingRequest: boolean
+}) {
+  const service =
+    booking.service ?? (isNewBookingRequest ? null : openBooking?.service) ?? null
+
+  const bookingTime =
+    booking.booking_time ?? (isNewBookingRequest ? null : openBooking?.booking_time) ?? null
+
+  const hasRealTime =
+    bookingTime &&
+    !String(bookingTime).includes("00:00:00")
+
+  const status =
+    service && bookingTime && hasRealTime
+      ? "pending"
+      : "missing_details"
+
+  if (openBooking) {
+    await updateBooking(openBooking.id, {
+      service,
+      booking_time: bookingTime,
+      status,
+    })
+  } else {
+    await createBooking({
+      business_id: businessId,
+      customer_id: customerId,
+      service,
+      booking_time: bookingTime,
+      status,
+    })
+  }
+
+  if (!openBooking && !booking.service) {
+    return "Sure! I'd be happy to help. What service would you like to book?"
+  }
+
+  if (!service) {
+    return "What service would you like to book?"
+  }
+
+  if (!bookingTime || !hasRealTime) {
+    return `Great! What date and time would you like for your ${service}?`
+  }
+
+  return `Perfect! I've recorded your booking request for a ${service} on ${bookingTime}.`
+}
