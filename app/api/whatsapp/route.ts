@@ -205,6 +205,25 @@ const wantsToCancelBooking =
 
 let action: string = "general_chat"
 
+if (lowerText === "hi" || lowerText === "hello" || lowerText === "hey") {
+  action = "greeting"
+} else if (lowerText.includes("thank")) {
+  action = "thank_you"
+} else if (lowerText.includes("bye")) {
+  action = "goodbye"
+} else if (
+  lowerText.includes("book") ||
+  lowerText.includes("appointment") ||
+  lowerText.includes("schedule")
+) {
+  action = "book_appointment"
+} else if (
+  lowerText.includes("change") ||
+  lowerText.includes("move") ||
+  lowerText.includes("reschedule")
+) {
+  action = "reschedule_booking"
+}
 console.log("USER TEXT:", userText)
 console.log("DETECTED ACTION:", action)
 
@@ -384,7 +403,7 @@ if (!useBooking) {
 // =========================
 // BOOKING EXTRACTION
 // =========================
-if (false) {
+if (useBooking) {
   const bookingExtract = await openai.chat.completions.create({
   model: "gpt-4o-mini",
   messages: [
