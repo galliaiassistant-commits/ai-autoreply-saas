@@ -7,12 +7,12 @@ import AuthModal from "@/components/AuthModal"
 import { supabase } from "@/lib/supabase"
 import { styles } from "@/styles/chat"
 import { SpeedInsights } from "@vercel/speed-insights/next"
-
 import {
   Mic,
   ImagePlus,
   SendHorizontal,
 } from "lucide-react"
+import { StatCard } from "@/components/dashboard/StatCard"
 
 type Message = {
   role: "user" | "assistant"

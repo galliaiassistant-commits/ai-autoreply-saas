@@ -1,6 +1,13 @@
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import BookingActions from "./BookingActions"
+import { StatCard } from "@/components/dashboard/StatCard"
+import {
+  Users,
+  CalendarDays,
+  MessageSquare,
+  Clock,
+} from "lucide-react"
 
 export default async function HomePage() {
   const { count: customersCount } = await supabase
@@ -56,35 +63,35 @@ const { data: memories } = await supabase
         Jhyro AI Dashboard
       </h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-slate-900 p-6 rounded-2xl">
-          <p className="text-slate-400">Customers</p>
-          <h2 className="text-3xl font-bold">
-            {customersCount || 0}
-          </h2>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+  <StatCard
+    title="Customers"
+    value={`${customersCount || 0}`}
+    subtitle="Total customers"
+    icon={<Users size={20} />}
+  />
 
-        <div className="bg-slate-900 p-6 rounded-2xl">
-          <p className="text-slate-400">Bookings</p>
-          <h2 className="text-3xl font-bold">
-            {bookingsCount || 0}
-          </h2>
-        </div>
+  <StatCard
+    title="Bookings"
+    value={`${bookingsCount || 0}`}
+    subtitle="Total bookings"
+    icon={<CalendarDays size={20} />}
+  />
 
-        <div className="bg-slate-900 p-6 rounded-2xl">
-          <p className="text-slate-400">Messages</p>
-          <h2 className="text-3xl font-bold">
-            {messagesCount || 0}
-          </h2>
-        </div>
+  <StatCard
+    title="Messages"
+    value={`${messagesCount || 0}`}
+    subtitle="Total messages"
+    icon={<MessageSquare size={20} />}
+  />
 
-        <div className="bg-slate-900 p-6 rounded-2xl">
-          <p className="text-slate-400">Pending Bookings</p>
-          <h2 className="text-3xl font-bold">
-            {pendingBookingsCount || 0}
-          </h2>
-        </div>
-      </div>
+  <StatCard
+    title="Pending Bookings"
+    value={`${pendingBookingsCount || 0}`}
+    subtitle="Need attention"
+    icon={<Clock size={20} />}
+  />
+</div>
 
       <div className="mt-10 bg-slate-900 p-6 rounded-2xl">
         <h2 className="text-2xl font-bold mb-4">
