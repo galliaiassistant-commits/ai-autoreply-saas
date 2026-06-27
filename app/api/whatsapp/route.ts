@@ -198,6 +198,11 @@ const wantsToCancelBooking =
   lowerText.includes("don't want") ||
   lowerText.includes("dont want")
 
+const action = await detectAction(openai, userText)
+
+const useBooking =
+  shouldUseBooking(action) || !!openBooking
+
 if (wantsToCancelBooking && openBooking) {
   await supabase
     .from("bookings")
@@ -219,15 +224,7 @@ return Response.json({ success: true })
 // ACTION DETECTION
 // =========================
 
-const action = await detectAction(
-  openai,
-  userText
-)
-
 console.log("ACTION:", action)
-
-const useBooking =
-  shouldUseBooking(action) || !!openBooking
 
 const isNewBookingRequest =
   action === "book_appointment" &&
@@ -411,7 +408,11 @@ Rules:
 - Do NOT assume the service from customer memory or past bookings. Only use a service if the customer says it in the current booking OR it already exists in the open booking.
 - If the customer says they want to cancel the current booking, stop booking, never mind, forget it, or don't book anymore, return cancel_booking true.
 - If cancel_booking is true, keep service and booking_time from the open booking if available.
+- If the customer asks to change, move, update, switch, or reschedule the booking date/time, overwrite the existing booking_time with the new date/time.
+- If the customer gives only a new date and the open booking already has a time, keep the existing time but change the date.
+- If the customer gives only a new time and the open booking already has a date, keep the existing date but change the time.
 Return shape:
+
 {
   "is_booking": true,
   "cancel_booking": false,
