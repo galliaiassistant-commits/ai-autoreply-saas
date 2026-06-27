@@ -1,12 +1,14 @@
 "use client"
 
 import { supabase } from "@/lib/supabase"
+import { useRouter } from "next/navigation"
 
 type Props = {
   bookingId: string
 }
 
 export default function BookingActions({ bookingId }: Props) {
+  const router = useRouter()
   async function updateStatus(status: string) {
     const { data, error } = await supabase
       .from("bookings")
@@ -24,7 +26,8 @@ export default function BookingActions({ bookingId }: Props) {
       return
     }
 
-    window.location.href = "/dashboard"
+    router.replace("/dashboard")
+router.refresh()
   }
 
  return (

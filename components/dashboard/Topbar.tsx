@@ -18,11 +18,17 @@ export function Topbar() {
       </div>
 
       <div className="flex items-center gap-4">
-        <button className="rounded-xl border border-gray-800 bg-gray-900 p-2 hover:bg-gray-800">
+        <button
+  type="button"
+  className="rounded-xl border border-gray-800 bg-gray-900 p-2 hover:bg-gray-800"
+>
           <Bell size={20} />
         </button>
 
-        <button className="flex items-center gap-2 rounded-xl bg-white text-black px-4 py-2 font-semibold hover:bg-gray-200">
+        <button
+  type="button"
+  className="flex items-center gap-2 rounded-xl bg-white text-black px-4 py-2 font-semibold hover:bg-gray-200"
+>
           <Plus size={18} />
           New
         </button>
