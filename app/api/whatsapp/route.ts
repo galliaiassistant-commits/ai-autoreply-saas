@@ -53,6 +53,11 @@ const userText = message?.text?.body || ""
 console.log("FROM:", from)
 console.log("TEXT:", userText)
 
+if (userText.toLowerCase().includes("test reset")) {
+  await sendWhatsAppMessage(from, "TEST RESET WORKS")
+  return Response.json({ success: true })
+}
+
 // FIND BUSINESS
 const business = await getBusiness()
 
@@ -204,7 +209,7 @@ console.log("USER TEXT:", userText)
 console.log("DETECTED ACTION:", action)
 
 const useBooking =
-  shouldUseBooking(action) || !!openBooking
+  shouldUseBooking(action)
 
 if (wantsToCancelBooking && openBooking) {
   await supabase
@@ -379,7 +384,7 @@ if (!useBooking) {
 // =========================
 // BOOKING EXTRACTION
 // =========================
-if (useBooking) {
+if (false) {
   const bookingExtract = await openai.chat.completions.create({
   model: "gpt-4o-mini",
   messages: [
