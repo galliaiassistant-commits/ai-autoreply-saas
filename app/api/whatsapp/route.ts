@@ -1,7 +1,11 @@
 import OpenAI from "openai"
 import { supabase } from "@/lib/supabase"
 import { sendWhatsAppMessage } from "@/lib/whatsapp"
-import { getOpenBooking } from "@/lib/booking"
+import {
+  getOpenBooking,
+  updateBooking,
+  createBooking,
+} from "@/lib/booking"
 import { getCustomerMemoryText } from "@/lib/memory"
 import { generateReply } from "@/lib/ai"
 import { getBusiness, getBusinessKnowledgeText, } from "@/lib/business"
@@ -477,7 +481,7 @@ console.log("BOOKING JSON:", JSON.stringify(booking, null, 2))
 
 if (!booking.cancel_booking && (booking.is_booking || openBooking)) {
   const service =
-   booking.service ?? (isNewBookingRequest ? null : openBooking?.service) ?? null
+    booking.service ?? (isNewBookingRequest ? null : openBooking?.service) ?? null
 
   const bookingTime =
     booking.booking_time ?? (isNewBookingRequest ? null : openBooking?.booking_time) ?? null
@@ -492,43 +496,34 @@ if (!booking.cancel_booking && (booking.is_booking || openBooking)) {
       : "missing_details"
 
   if (openBooking) {
-    const { error: updateBookingError } = await supabase
-      .from("bookings")
-      .update({
-        service,
-        booking_time: bookingTime,
-        status,
-      })
-      .eq("id", openBooking.id)
-
-    console.log("UPDATE BOOKING ERROR:", updateBookingError)
+    await updateBooking(openBooking.id, {
+      service,
+      booking_time: bookingTime,
+      status,
+    })
   } else {
-    const { error: bookingError } = await supabase
-      .from("bookings")
-      .insert({
-        business_id: business.id,
-        customer_id: customer.id,
-        service,
-        booking_time: bookingTime,
-        status,
-      })
-
-    console.log("BOOKING ERROR:", bookingError)
+    await createBooking({
+      business_id: business.id,
+      customer_id: customer.id,
+      service,
+      booking_time: bookingTime,
+      status,
+    })
   }
 
   if (!openBooking && !booking.service) {
-  reply =
-    "Sure! I'd be happy to help. What service would you like to book?"
-} else if (!service) {
-  reply =
-    "What service would you like to book?"
-} else if (!bookingTime || !hasRealTime) {
-  reply =
-    `Great! What date and time would you like for your ${service}?`
-} else {
-  reply =
-    `Perfect! I've recorded your booking request for a ${service} on ${bookingTime}.`
-}
+    reply =
+      "Sure! I'd be happy to help. What service would you like to book?"
+  } else if (!service) {
+    reply =
+      "What service would you like to book?"
+  } else if (!bookingTime || !hasRealTime) {
+    reply =
+      `Great! What date and time would you like for your ${service}?`
+  } else {
+    reply =
+      `Perfect! I've recorded your booking request for a ${service} on ${bookingTime}.`
+  }
 }
 }
 // =========================
