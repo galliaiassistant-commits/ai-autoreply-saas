@@ -9,6 +9,7 @@ import {
   Clock,
 } from "lucide-react"
 import { PageHeader } from "@/components/dashboard/PageHeader"
+import { DataTable } from "@/components/dashboard/DataTable"
 
 export default async function HomePage() {
   const { count: customersCount } = await supabase
@@ -95,176 +96,149 @@ const { data: memories } = await supabase
   />
 </div>
 
-      <div className="mt-10 bg-slate-900 p-6 rounded-2xl">
-        <h2 className="text-2xl font-bold mb-4">
-          Customers
-        </h2>
+      <DataTable title="Customers">
+  <thead>
+    <tr className="text-slate-400">
+      <th>Name</th>
+      <th>Phone</th>
+      <th>Joined</th>
+    </tr>
+  </thead>
 
-        <table className="w-full text-left">
-          <thead>
-  <tr className="text-slate-400">
-    <th>Service</th>
-    <th>Date/Time</th>
-    <th>Status</th>
-    <th>Actions</th>
-  </tr>
-</thead>
+  <tbody>
+    {customers?.map((customer) => (
+      <tr
+        key={customer.id}
+        className="border-t border-slate-800"
+      >
+        <td className="py-3">
+          <Link
+            href={`/dashboard/customers/${customer.id}`}
+            className="text-blue-400 hover:text-blue-300"
+          >
+            {customer.name || "Unknown"}
+          </Link>
+        </td>
 
-          <tbody>
-            {customers?.map((customer) => (
-              <tr
-                key={customer.id}
-                className="border-t border-slate-800"
-              >
-                <td className="py-3">
-  <Link
-    href={`/dashboard/customers/${customer.id}`}
-    className="text-blue-400 hover:text-blue-300"
-  >
-    {customer.name || "Unknown"}
-  </Link>
-</td>
+        <td>{customer.phone_number}</td>
 
-                <td>{customer.phone_number}</td>
-
-                <td>
-                  {new Date(
-                    customer.created_at
-                  ).toLocaleDateString()}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-<div className="mt-10 bg-slate-900 p-6 rounded-2xl">
-  <h2 className="text-2xl font-bold mb-4">
-    Bookings
-  </h2>
-
-  <table className="w-full text-left">
-    <thead>
-      <tr className="text-slate-400">
-        <th>Service</th>
-        <th>Date/Time</th>
-        <th>Status</th>
+        <td>
+          {new Date(customer.created_at).toLocaleDateString()}
+        </td>
       </tr>
-    </thead>
+    ))}
+  </tbody>
+</DataTable>
 
-    <tbody>
-      {bookings?.map((booking) => (
-        <tr
-          key={booking.id}
-          className="border-t border-slate-800"
-        >
-          <td className="py-3">
-            {booking.service || "Unknown"}
-          </td>
+<DataTable title="Bookings">
+  <thead>
+    <tr className="text-slate-400">
+      <th>Service</th>
+      <th>Date/Time</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
 
-          <td>
-  <span
-    className={`px-3 py-1 rounded-full text-sm ${
-      booking.status === "pending"
-        ? "bg-yellow-600"
-        : booking.status === "confirmed"
-        ? "bg-blue-600"
-        : booking.status === "completed"
-        ? "bg-green-600"
-        : "bg-red-600"
-    }`}
-  >
-    {booking.status}
-  </span>
-</td>
+  <tbody>
+    {bookings?.map((booking) => (
+      <tr
+        key={booking.id}
+        className="border-t border-slate-800"
+      >
+        <td className="py-3">
+          {booking.service || "Unknown"}
+        </td>
 
-          <td>
+        <td>
+          <span
+            className={`px-3 py-1 rounded-full text-sm ${
+              booking.status === "pending"
+                ? "bg-yellow-600"
+                : booking.status === "confirmed"
+                ? "bg-blue-600"
+                : booking.status === "completed"
+                ? "bg-green-600"
+                : "bg-red-600"
+            }`}
+          >
             {booking.status}
-          </td>
-         <td className="py-3">
-  <BookingActions bookingId={booking.id} />
-</td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-</div>
+          </span>
+        </td>
 
-<div className="mt-10 bg-slate-900 p-6 rounded-2xl">
-  <h2 className="text-2xl font-bold mb-4">
-    Recent Messages
-  </h2>
+        <td>{booking.status}</td>
 
-  <table className="w-full text-left">
-    <thead>
-      <tr className="text-slate-400">
-        <th>Role</th>
-        <th>Message</th>
-        <th>Time</th>
+        <td className="py-3">
+          <BookingActions bookingId={booking.id} />
+        </td>
       </tr>
-    </thead>
+    ))}
+  </tbody>
+</DataTable>
 
-    <tbody>
-      {recentMessages?.map((msg) => (
-        <tr
-          key={msg.id}
-          className="border-t border-slate-800"
-        >
-          <td className="py-3">
-            {msg.role}
-          </td>
+<DataTable title="Recent Messages">
+  <thead>
+    <tr className="text-slate-400">
+      <th>Role</th>
+      <th>Message</th>
+      <th>Time</th>
+    </tr>
+  </thead>
 
-          <td>
-            {msg.message}
-          </td>
+  <tbody>
+    {recentMessages?.map((msg) => (
+      <tr
+        key={msg.id}
+        className="border-t border-slate-800"
+      >
+        <td className="py-3">
+          {msg.role}
+        </td>
 
-          <td>
-            {new Date(
-              msg.created_at
-            ).toLocaleString()}
-          </td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-</div>
+        <td>
+          {msg.message}
+        </td>
 
-<div className="mt-10 bg-slate-900 p-6 rounded-2xl">
-  <h2 className="text-2xl font-bold mb-4">
-    Customer Memory
-  </h2>
-
-  <table className="w-full text-left">
-    <thead>
-      <tr className="text-slate-400">
-        <th>Type</th>
-        <th>Memory</th>
-        <th>Confidence</th>
+        <td>
+          {new Date(
+            msg.created_at
+          ).toLocaleString()}
+        </td>
       </tr>
-    </thead>
+    ))}
+  </tbody>
+</DataTable>
 
-    <tbody>
-      {memories?.map((memory) => (
-        <tr
-          key={memory.id}
-          className="border-t border-slate-800"
-        >
-          <td className="py-3">
-            {memory.type}
-          </td>
+<DataTable title="Customer Memory">
+  <thead>
+    <tr className="text-slate-400">
+      <th>Type</th>
+      <th>Memory</th>
+      <th>Confidence</th>
+    </tr>
+  </thead>
 
-          <td>
-            {memory.content}
-          </td>
+  <tbody>
+    {memories?.map((memory) => (
+      <tr
+        key={memory.id}
+        className="border-t border-slate-800"
+      >
+        <td className="py-3">
+          {memory.type}
+        </td>
 
-          <td>
-            {memory.confidence}
-          </td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-</div>
+        <td>
+          {memory.content}
+        </td>
+
+        <td>
+          {memory.confidence}
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</DataTable>
 
     </main>
   )
