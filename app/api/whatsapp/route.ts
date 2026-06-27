@@ -5,6 +5,7 @@ import {
   getOpenBooking,
   updateBooking,
   createBooking,
+  extractBooking,
 } from "@/lib/booking"
 import { getCustomerMemoryText } from "@/lib/memory"
 import { generateReply } from "@/lib/ai"
@@ -408,73 +409,15 @@ if (!useBooking) {
 // BOOKING EXTRACTION
 // =========================
 if (useBooking) {
-  const bookingExtract = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages: [
-    {
-      role: "system",
-      content: `
-You extract booking intent and booking details from customer messages.
+  const booking = await extractBooking(
+  openai,
+  userText,
+  openBooking,
+  isNewBookingRequest
+)
 
-Return ONLY valid JSON.
-
-If this is not about booking, return:
-{
-  "is_booking": false
-}
-
-Rules:
-- Use the Existing open booking as context.
-- Keep existing service unless customer changes it.
-- booking_time must include BOTH date and time.
-- Never return 00:00:00 unless customer said midnight.
-- If date or time is missing, booking_time must be null.
-- If service and full booking_time exist, status is "pending".
-- Otherwise status is "missing_details".
-- If customer says yes, yes please, correct, or confirm, treat it as confirmation of current booking.
-- Do NOT assume the service from customer memory or past bookings. Only use a service if the customer says it in the current booking OR it already exists in the open booking.
-- If the customer says they want to cancel the current booking, stop booking, never mind, forget it, or don't book anymore, return cancel_booking true.
-- If cancel_booking is true, keep service and booking_time from the open booking if available.
-- If the customer asks to change, move, update, switch, or reschedule the booking date/time, overwrite the existing booking_time with the new date/time.
-- If the customer gives only a new date and the open booking already has a time, keep the existing time but change the date.
-- If the customer gives only a new time and the open booking already has a date, keep the existing date but change the time.
-Return shape:
-
-{
-  "is_booking": true,
-  "cancel_booking": false,
-  "service": null,
-  "booking_time": null,
-  "status": "missing_details"
-}
-`,
-    },
-    {
-      role: "user",
-      content: `
-Existing open booking:
-${JSON.stringify(isNewBookingRequest ? null : openBooking)}
-
-Current customer message:
-${userText}
-
-Today's date:
-${new Date().toISOString()}
-
-Merge the customer message with the existing booking.
-Preserve existing booking information unless the customer changes it.
-`,
-    },
-  ],
-})
-
-let booking: any = {}
-
-try {
-  booking = JSON.parse(bookingExtract.choices[0].message.content || "{}")
-} catch {
-  booking = { is_booking: false }
-}
+console.log("BOOKING EXTRACTED:", booking)
+console.log("BOOKING JSON:", JSON.stringify(booking, null, 2))
 
 console.log("BOOKING EXTRACTED:", booking)
 console.log("BOOKING JSON:", JSON.stringify(booking, null, 2))
