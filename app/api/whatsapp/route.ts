@@ -198,7 +198,7 @@ const wantsToCancelBooking =
   lowerText.includes("don't want") ||
   lowerText.includes("dont want")
 
-const action = await detectAction(openai, userText)
+let action: string = "general_chat"
 
 console.log("USER TEXT:", userText)
 console.log("DETECTED ACTION:", action)

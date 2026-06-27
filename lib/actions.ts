@@ -4,24 +4,17 @@ export async function detectAction(
   openai: OpenAI,
   userText: string
 ) {
-
-const action = await detectAction(openai, userText)
-
-console.log("USER TEXT:", userText)
-console.log("DETECTED ACTION:", action)
-
   const actionResponse = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       {
         role: "system",
-       content: `
+        content: `
 You classify customer messages.
 
 Return ONLY valid JSON.
 
 Possible actions:
-
 - book_appointment
 - cancel_booking
 - reschedule_booking
@@ -37,7 +30,6 @@ Possible actions:
 - general_chat
 
 Rules:
-
 - If the customer wants to make a new booking, return "book_appointment".
 - If the customer wants to cancel an existing booking, return "cancel_booking".
 - If the customer wants to change, move, update, switch, or reschedule an existing booking, return "reschedule_booking".
@@ -45,7 +37,6 @@ Rules:
 - If none of the above apply, choose the most appropriate action.
 
 Return ONLY JSON in this format:
-
 {
   "action": "general_chat"
 }
@@ -64,9 +55,6 @@ Return ONLY JSON in this format:
     )
 
     console.log("ACTION:", result.action)
-
-console.log("USER MESSAGE:", userText)
-console.log("ACTION:", result.action)
 
     return result.action || "general_chat"
   } catch {
