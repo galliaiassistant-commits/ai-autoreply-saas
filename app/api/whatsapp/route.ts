@@ -200,6 +200,9 @@ const wantsToCancelBooking =
 
 const action = await detectAction(openai, userText)
 
+console.log("USER TEXT:", userText)
+console.log("DETECTED ACTION:", action)
+
 const useBooking =
   shouldUseBooking(action) || !!openBooking
 
@@ -260,10 +263,6 @@ if (quickReply) {
   return Response.json({ success: true })
 }
 
-if (quickReply) {
-  await sendWhatsAppMessage(from, quickReply)
-  return Response.json({ success: true })
-}
     const messages = [
       {
         role: "system",

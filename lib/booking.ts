@@ -16,3 +16,46 @@ export async function getOpenBooking(customerId: string) {
 
   return data
 }
+export async function updateBooking(
+  bookingId: string,
+  updates: {
+    service?: string | null
+    booking_time?: string | null
+    status?: string
+  }
+) {
+  const { data, error } = await supabase
+    .from("bookings")
+    .update(updates)
+    .eq("id", bookingId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("UPDATE BOOKING ERROR:", error)
+  }
+
+  return data
+}
+
+export async function createBooking(
+  booking: {
+    business_id: string
+    customer_id: string
+    service: string | null
+    booking_time: string | null
+    status: string
+  }
+) {
+  const { data, error } = await supabase
+    .from("bookings")
+    .insert(booking)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("CREATE BOOKING ERROR:", error)
+  }
+
+  return data
+}
