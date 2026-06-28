@@ -141,39 +141,45 @@ const { data: memories } = await supabase
   </thead>
 
   <tbody>
-    {bookings?.map((booking) => (
-      <tr
-        key={booking.id}
-        className="border-t border-slate-800"
-      >
-        <td className="py-3">
-          {booking.service || "Unknown"}
-        </td>
+  {bookings?.map((booking) => (
+    <tr
+      key={booking.id}
+      className="border-t border-slate-800"
+    >
+      <td className="py-3">
+        {booking.service || "Unknown"}
+      </td>
 
-        <td>
-          <span
-            className={`px-3 py-1 rounded-full text-sm ${
-              booking.status === "pending"
-                ? "bg-yellow-600"
-                : booking.status === "confirmed"
-                ? "bg-blue-600"
-                : booking.status === "completed"
-                ? "bg-green-600"
-                : "bg-red-600"
-            }`}
-          >
-            {booking.status}
-          </span>
-        </td>
+      <td>
+        {booking.booking_time
+          ? new Date(booking.booking_time).toLocaleString()
+          : "Not scheduled"}
+      </td>
 
-        <td>{booking.status}</td>
+      <td>
+        <span
+          className={`px-3 py-1 rounded-full text-sm ${
+            booking.status === "pending"
+              ? "bg-yellow-600"
+              : booking.status === "confirmed"
+              ? "bg-blue-600"
+              : booking.status === "completed"
+              ? "bg-green-600"
+              : booking.status === "cancelled"
+              ? "bg-red-600"
+              : "bg-slate-600"
+          }`}
+        >
+          {booking.status}
+        </span>
+      </td>
 
-        <td className="py-3">
-          <BookingActions bookingId={booking.id} />
-        </td>
-      </tr>
-    ))}
-  </tbody>
+      <td className="py-3">
+        <BookingActions bookingId={booking.id} />
+      </td>
+    </tr>
+  ))}
+</tbody>
 </DataTable>
 
 <DataTable title="Recent Messages">
