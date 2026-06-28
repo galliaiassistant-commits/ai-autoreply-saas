@@ -33,7 +33,9 @@ export default function BookingActions({ bookingId }: Props) {
       return
     }
 
-    alert("Booking updated.")
+    alert(
+  "Booking updated: " + JSON.stringify(data)
+)
     router.refresh()
   }
 
