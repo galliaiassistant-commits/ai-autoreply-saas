@@ -10,6 +10,8 @@ import {
 } from "lucide-react"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import { DataTable } from "@/components/dashboard/DataTable"
+import { StatusBadge } from "@/components/dashboard/StatusBadge"
+import { DashboardSection } from "@/components/dashboard/DashboardSection"
 
 export default async function HomePage() {
   const { count: customersCount } = await supabase
@@ -130,57 +132,48 @@ const { data: memories } = await supabase
   </tbody>
 </DataTable>
 
-<DataTable title="Bookings">
-  <thead>
-    <tr className="text-slate-400">
-      <th>Service</th>
-      <th>Date/Time</th>
-      <th>Status</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
+<DashboardSection
+  title="Bookings"
+  description="Manage customer appointment requests and booking statuses."
+>
+  <DataTable title="Bookings">
+    <thead>
+      <tr className="text-slate-400">
+        <th>Service</th>
+        <th>Date/Time</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
 
-  <tbody>
-  {bookings?.map((booking) => (
-    <tr
-      key={booking.id}
-      className="border-t border-slate-800"
-    >
-      <td className="py-3">
-        {booking.service || "Unknown"}
-      </td>
-
-      <td>
-        {booking.booking_time
-          ? new Date(booking.booking_time).toLocaleString()
-          : "Not scheduled"}
-      </td>
-
-      <td>
-        <span
-          className={`px-3 py-1 rounded-full text-sm ${
-            booking.status === "pending"
-              ? "bg-yellow-600"
-              : booking.status === "confirmed"
-              ? "bg-blue-600"
-              : booking.status === "completed"
-              ? "bg-green-600"
-              : booking.status === "cancelled"
-              ? "bg-red-600"
-              : "bg-slate-600"
-          }`}
+    <tbody>
+      {bookings?.map((booking) => (
+        <tr
+          key={booking.id}
+          className="border-t border-slate-800"
         >
-          {booking.status}
-        </span>
-      </td>
+          <td className="py-3">
+            {booking.service || "Unknown"}
+          </td>
 
-      <td className="py-3">
-        <BookingActions bookingId={booking.id} />
-      </td>
-    </tr>
-  ))}
-</tbody>
-</DataTable>
+          <td>
+            {booking.booking_time
+              ? new Date(booking.booking_time).toLocaleString()
+              : "Not scheduled"}
+          </td>
+
+          <td>
+            <StatusBadge status={booking.status} />
+          </td>
+
+          <td className="py-3">
+            <BookingActions bookingId={booking.id} />
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </DataTable>
+</DashboardSection>
 
 <DataTable title="Recent Messages">
   <thead>
