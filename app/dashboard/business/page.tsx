@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { PageHeader } from "@/components/dashboard/PageHeader"
 
 export default function BusinessSettingsPage() {
   const [business, setBusiness] = useState<any>(null)
@@ -19,9 +20,7 @@ export default function BusinessSettingsPage() {
       .limit(1)
       .maybeSingle()
 
-    if (error) {
-      console.error("LOAD BUSINESS ERROR:", error)
-    }
+    if (error) alert(error.message)
 
     setBusiness(data)
     setLoading(false)
@@ -41,127 +40,89 @@ export default function BusinessSettingsPage() {
         hours: business.hours,
         services: business.services,
         booking_policy: business.booking_policy,
-        personality: business.personality,
+        email: business.email,
+        website: business.website,
+        country: business.country,
+        city: business.city,
+        currency: business.currency,
       })
       .eq("id", business.id)
 
+    setSaving(false)
+
     if (error) {
-      console.error("SAVE BUSINESS ERROR:", error)
-      alert("Failed to save settings.")
-    } else {
-      alert("Business settings saved.")
+      alert(error.message)
+      return
     }
 
-    setSaving(false)
+    alert("Business settings saved!")
   }
 
   if (loading) {
-    return <main className="p-6">Loading business settings...</main>
+    return <div className="text-slate-400">Loading business settings...</div>
   }
 
   if (!business) {
-    return <main className="p-6">No business found.</main>
+    return <div className="text-slate-400">No business found.</div>
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-6">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Business Settings</h1>
-          <p className="text-gray-400 mt-2">
-            Control what Jhyro AI knows about your business.
-          </p>
-        </div>
+    <div>
+      <PageHeader
+        title="Business"
+        description="Manage your business profile, contact details, services, and booking rules."
+      />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <section className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-            <h2 className="text-xl font-semibold mb-4">Business Info</h2>
+      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+        <Card title="Business Profile">
+          <Input label="Business Name" value={business.business_name || business.name || ""} onChange={(v) => setBusiness({ ...business, business_name: v })} />
+          <Input label="Phone Number" value={business.phone || ""} onChange={(v) => setBusiness({ ...business, phone: v })} />
+          <Input label="Email" value={business.email || ""} onChange={(v) => setBusiness({ ...business, email: v })} />
+          <Input label="Website" value={business.website || ""} onChange={(v) => setBusiness({ ...business, website: v })} />
+        </Card>
 
-            <Input
-              label="Business Name"
-              value={business.business_name || business.name || ""}
-              onChange={(v) =>
-                setBusiness({ ...business, business_name: v })
-              }
-            />
+        <Card title="Location">
+          <Input label="Address" value={business.address || ""} onChange={(v) => setBusiness({ ...business, address: v })} />
+          <Input label="City" value={business.city || ""} onChange={(v) => setBusiness({ ...business, city: v })} />
+          <Input label="Country" value={business.country || "Jamaica"} onChange={(v) => setBusiness({ ...business, country: v })} />
+          <Input label="Currency" value={business.currency || "JMD"} onChange={(v) => setBusiness({ ...business, currency: v })} />
+        </Card>
 
-            <Input
-              label="Phone Number"
-              value={business.phone || ""}
-              onChange={(v) =>
-                setBusiness({ ...business, phone: v })
-              }
-            />
+        <Card title="Operations">
+          <Textarea label="Opening Hours" value={business.hours || ""} placeholder="Monday to Saturday, 9 AM to 6 PM" onChange={(v) => setBusiness({ ...business, hours: v })} />
+          <Textarea label="Services and Prices" value={business.services || ""} placeholder={"Haircut - $2500\nBeard trim - $1000"} onChange={(v) => setBusiness({ ...business, services: v })} />
+        </Card>
 
-            <Textarea
-              label="Address"
-              value={business.address || ""}
-              onChange={(v) =>
-                setBusiness({ ...business, address: v })
-              }
-            />
-          </section>
-
-          <section className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-            <h2 className="text-xl font-semibold mb-4">Operations</h2>
-
-            <Textarea
-              label="Opening Hours"
-              value={business.hours || ""}
-              placeholder="Example: Monday to Saturday, 9 AM - 6 PM"
-              onChange={(v) =>
-                setBusiness({ ...business, hours: v })
-              }
-            />
-
-            <Textarea
-              label="Services"
-              value={business.services || ""}
-              placeholder="Example: Haircut, shave, beard trim"
-              onChange={(v) =>
-                setBusiness({ ...business, services: v })
-              }
-            />
-          </section>
-
-          <section className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-            <h2 className="text-xl font-semibold mb-4">Booking Policy</h2>
-
-            <Textarea
-              label="Booking Rules"
-              value={business.booking_policy || ""}
-              placeholder="Example: Bookings require date, time, and service. Same-day appointments allowed if available."
-              onChange={(v) =>
-                setBusiness({ ...business, booking_policy: v })
-              }
-            />
-          </section>
-
-          <section className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-            <h2 className="text-xl font-semibold mb-4">AI Personality</h2>
-
-            <Textarea
-              label="Personality"
-              value={business.personality || ""}
-              placeholder="Example: Friendly, professional, short replies, helpful tone."
-              onChange={(v) =>
-                setBusiness({ ...business, personality: v })
-              }
-            />
-          </section>
-        </div>
-
-        <div className="mt-8 flex justify-end">
-          <button
-            onClick={saveBusiness}
-            disabled={saving}
-            className="bg-white text-black px-6 py-3 rounded-xl font-semibold hover:bg-gray-200 disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save Settings"}
-          </button>
-        </div>
+        <Card title="Booking Rules">
+          <Textarea label="Booking Policy" value={business.booking_policy || ""} placeholder="Appointments require a service, date, and time. Closed on Sundays." onChange={(v) => setBusiness({ ...business, booking_policy: v })} />
+        </Card>
       </div>
-    </main>
+
+      <div className="mt-8 flex justify-end">
+        <button
+          onClick={saveBusiness}
+          disabled={saving}
+          className="rounded-xl bg-white px-6 py-3 font-semibold text-black hover:bg-slate-200 disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Save Business"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Card({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+      <h2 className="mb-5 text-xl font-bold text-white">{title}</h2>
+      <div className="space-y-4">{children}</div>
+    </section>
   )
 }
 
@@ -175,16 +136,14 @@ function Input({
   onChange: (value: string) => void
 }) {
   return (
-    <div className="mb-4">
-      <label className="block text-sm text-gray-300 mb-2">
-        {label}
-      </label>
+    <label className="block">
+      <span className="text-sm text-slate-400">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 outline-none focus:border-white"
+        className="mt-2 w-full rounded-xl bg-slate-800 p-3 text-white outline-none"
       />
-    </div>
+    </label>
   )
 }
 
@@ -200,17 +159,15 @@ function Textarea({
   placeholder?: string
 }) {
   return (
-    <div className="mb-4">
-      <label className="block text-sm text-gray-300 mb-2">
-        {label}
-      </label>
+    <label className="block">
+      <span className="text-sm text-slate-400">{label}</span>
       <textarea
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        rows={5}
-        className="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 outline-none focus:border-white resize-none"
+        rows={6}
+        className="mt-2 w-full resize-none rounded-xl bg-slate-800 p-3 text-white outline-none"
       />
-    </div>
+    </label>
   )
 }

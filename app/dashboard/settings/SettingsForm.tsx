@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { PageHeader } from "@/components/dashboard/PageHeader"
 
 export default function SettingsForm() {
   const [businessId, setBusinessId] = useState("")
@@ -11,7 +12,9 @@ export default function SettingsForm() {
   const [hours, setHours] = useState("")
   const [services, setServices] = useState("")
   const [bookingPolicy, setBookingPolicy] = useState("")
-  const [personality, setPersonality] = useState("friendly")
+  const [timezone, setTimezone] = useState("America/Jamaica")
+  const [language, setLanguage] = useState("English")
+  const [notifications, setNotifications] = useState("enabled")
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -31,7 +34,9 @@ export default function SettingsForm() {
       setHours(data.hours || "")
       setServices(data.services || "")
       setBookingPolicy(data.booking_policy || "")
-      setPersonality(data.personality || "friendly")
+      setTimezone(data.timezone || "America/Jamaica")
+      setLanguage(data.language || "English")
+      setNotifications(data.notifications || "enabled")
     }
 
     loadBusiness()
@@ -48,7 +53,9 @@ export default function SettingsForm() {
       hours,
       services,
       booking_policy: bookingPolicy,
-      personality,
+      timezone,
+      language,
+      notifications,
     }
 
     let error
@@ -78,101 +85,159 @@ export default function SettingsForm() {
       return
     }
 
-    alert("Settings saved")
+    alert("Settings saved!")
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-8">
-      <h1 className="text-4xl font-bold mb-8">
-        Business Settings
-      </h1>
+    <div>
+      <PageHeader
+        title="Settings"
+        description="Manage your business profile, defaults, and preferences."
+      />
 
-      <form
-        onSubmit={saveSettings}
-        className="bg-slate-900 p-6 rounded-2xl max-w-3xl"
-      >
-        <label className="block mb-4">
-          <span className="text-slate-400">Business Name</span>
-          <input
-            value={businessName}
-            onChange={(e) => setBusinessName(e.target.value)}
-            className="w-full mt-2 p-3 rounded bg-slate-800 text-white"
-            placeholder="Jhyro AI Demo"
-          />
-        </label>
+      <form onSubmit={saveSettings} className="mt-6 space-y-6">
+        <SettingsCard title="Business Profile">
+          <div className="grid gap-4 md:grid-cols-2">
+            <InputField label="Business Name" value={businessName} onChange={setBusinessName} placeholder="Jhyro AI Demo" />
+            <InputField label="Phone Number" value={phone} onChange={setPhone} placeholder="876-000-0000" />
+          </div>
 
-        <label className="block mb-4">
-          <span className="text-slate-400">Phone Number</span>
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="w-full mt-2 p-3 rounded bg-slate-800 text-white"
-            placeholder="876-000-0000"
-          />
-        </label>
+          <InputField label="Address" value={address} onChange={setAddress} placeholder="May Pen, Clarendon" />
+        </SettingsCard>
 
-        <label className="block mb-4">
-          <span className="text-slate-400">Address</span>
-          <input
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            className="w-full mt-2 p-3 rounded bg-slate-800 text-white"
-            placeholder="May Pen, Clarendon"
-          />
-        </label>
+        <SettingsCard title="Business Operations">
+          <TextAreaField label="Opening Hours" value={hours} onChange={setHours} placeholder="Monday to Saturday, 9 AM to 6 PM" />
+          <TextAreaField label="Services and Prices" value={services} onChange={setServices} placeholder={"Haircut - $25\nBeard trim - $10"} />
+          <TextAreaField label="Booking Policy" value={bookingPolicy} onChange={setBookingPolicy} placeholder="Appointments every 30 minutes. Walk-ins accepted if available." />
+        </SettingsCard>
 
-        <label className="block mb-4">
-          <span className="text-slate-400">Opening Hours</span>
-          <textarea
-            value={hours}
-            onChange={(e) => setHours(e.target.value)}
-            className="w-full mt-2 p-3 rounded bg-slate-800 text-white"
-            placeholder="Monday to Saturday, 9 AM to 6 PM"
-          />
-        </label>
+        <SettingsCard title="Preferences">
+          <div className="grid gap-4 md:grid-cols-3">
+            <SelectField label="Timezone" value={timezone} onChange={setTimezone} options={["America/Jamaica", "America/New_York", "America/Toronto", "Europe/London"]} />
+            <SelectField label="Language" value={language} onChange={setLanguage} options={["English", "Jamaican Patois", "Spanish", "French"]} />
+            <SelectField label="Notifications" value={notifications} onChange={setNotifications} options={["enabled", "disabled"]} />
+          </div>
+        </SettingsCard>
 
-        <label className="block mb-4">
-          <span className="text-slate-400">Services and Prices</span>
-          <textarea
-            value={services}
-            onChange={(e) => setServices(e.target.value)}
-            className="w-full mt-2 p-3 rounded bg-slate-800 text-white"
-            placeholder="Haircut - $25&#10;Beard trim - $10"
-          />
-        </label>
-
-        <label className="block mb-4">
-          <span className="text-slate-400">Booking Policy</span>
-          <textarea
-            value={bookingPolicy}
-            onChange={(e) => setBookingPolicy(e.target.value)}
-            className="w-full mt-2 p-3 rounded bg-slate-800 text-white"
-            placeholder="Appointments every 30 minutes. Walk-ins accepted if available."
-          />
-        </label>
-
-        <label className="block mb-6">
-          <span className="text-slate-400">AI Personality</span>
-          <select
-            value={personality}
-            onChange={(e) => setPersonality(e.target.value)}
-            className="w-full mt-2 p-3 rounded bg-slate-800 text-white"
-          >
-            <option value="friendly">Friendly</option>
-            <option value="professional">Professional</option>
-            <option value="casual">Casual</option>
-            <option value="sales-focused">Sales-focused</option>
-            <option value="luxury">Luxury</option>
-          </select>
-        </label>
+        <SettingsCard title="Security">
+          <div className="grid gap-4 md:grid-cols-2">
+            <InfoBox title="Account Security" value="Password and account controls coming soon." />
+            <InfoBox title="Team Access" value="Team members and roles coming soon." />
+          </div>
+        </SettingsCard>
 
         <button
           disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded font-bold"
+          className="rounded-xl bg-white px-6 py-3 font-semibold text-black hover:bg-slate-200 disabled:opacity-50"
         >
           {loading ? "Saving..." : "Save Settings"}
         </button>
       </form>
-    </main>
+    </div>
+  )
+}
+
+function SettingsCard({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+      <h2 className="mb-5 text-xl font-bold text-white">{title}</h2>
+      <div className="space-y-4">{children}</div>
+    </section>
+  )
+}
+
+function InputField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+}) {
+  return (
+    <label className="block">
+      <span className="text-sm text-slate-400">{label}</span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-2 w-full rounded-xl bg-slate-800 p-3 text-white outline-none"
+        placeholder={placeholder}
+      />
+    </label>
+  )
+}
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+}) {
+  return (
+    <label className="block">
+      <span className="text-sm text-slate-400">{label}</span>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-2 min-h-28 w-full rounded-xl bg-slate-800 p-3 text-white outline-none"
+        placeholder={placeholder}
+      />
+    </label>
+  )
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  options: string[]
+}) {
+  return (
+    <label className="block">
+      <span className="text-sm text-slate-400">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-2 w-full rounded-xl bg-slate-800 p-3 text-white outline-none"
+      >
+        {options.map((option) => (
+          <option key={option}>{option}</option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+function InfoBox({
+  title,
+  value,
+}: {
+  title: string
+  value: string
+}) {
+  return (
+    <div className="rounded-xl bg-slate-800 p-4">
+      <p className="font-semibold text-white">{title}</p>
+      <p className="mt-2 text-sm text-slate-400">{value}</p>
+    </div>
   )
 }

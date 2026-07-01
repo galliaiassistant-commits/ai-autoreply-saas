@@ -2,8 +2,8 @@ import "./globals.css"
 import { Analytics } from "@vercel/analytics/next"
 
 export const metadata = {
-  title: "AI Auto Reply",
-  description: "Public AI assistant",
+  title: "Jhyro AI",
+  description: "AI business assistant",
 }
 
 export default function RootLayout({

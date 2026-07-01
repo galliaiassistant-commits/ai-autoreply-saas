@@ -14,12 +14,14 @@ export async function getOpenBooking(customerId: string) {
     .from("bookings")
     .select("*")
     .eq("customer_id", customerId)
-    .in("status", ["missing_details", "pending", "confirmed"])
+    .in("status", ["missing_details"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  if (error) console.error("OPEN BOOKING ERROR:", error)
+  if (error) {
+    console.error("OPEN BOOKING ERROR:", error)
+  }
 
   return data
 }
@@ -39,7 +41,10 @@ export async function updateBooking(
     .select()
     .single()
 
-  if (error) console.error("UPDATE BOOKING ERROR:", error)
+  if (error) {
+    console.error("UPDATE BOOKING ERROR:", error)
+    return null
+  }
 
   return data
 }
@@ -51,7 +56,10 @@ export async function createBooking(booking: BookingInput) {
     .select()
     .single()
 
-  if (error) console.error("CREATE BOOKING ERROR:", error)
+  if (error) {
+    console.error("CREATE BOOKING ERROR:", error)
+    return null
+  }
 
   return data
 }
@@ -83,14 +91,13 @@ Rules:
 - booking_time must include BOTH date and time.
 - Never return 00:00:00 unless customer said midnight.
 - If date or time is missing, booking_time must be null.
-- If service and full booking_time exist, status is "pending".
+- If service and full booking_time exist, status is "booked".
 - Otherwise status is "missing_details".
-- If customer says yes, yes please, correct, or confirm, treat it as confirmation of current booking.
 - Do NOT assume the service from customer memory or past bookings.
-- If the customer asks to change, move, update, switch, or reschedule the booking date/time, overwrite the existing booking_time with the new date/time.
-- If the customer gives only a new date and the open booking already has a time, keep the existing time but change the date.
-- If the customer gives only a new time and the open booking already has a date, keep the existing date but change the time.
-- If the customer mentions a day of the week such as Sunday, Monday, Tuesday, etc., include it in "requested_day".
+- If customer asks to change, move, update, switch, or reschedule the booking date/time, overwrite existing booking_time with the new date/time.
+- If customer gives only a new date and the open booking already has a time, keep the existing time but change the date.
+- If customer gives only a new time and the open booking already has a date, keep the existing date but change the time.
+- If customer mentions a day of the week such as Sunday, Monday, Tuesday, etc., include it in "requested_day".
 
 Return shape:
 {
@@ -148,8 +155,7 @@ function getClosedDay({
   const mentionsSunday =
     text.includes("sunday") || text.includes("sun")
 
-  const closedOnSunday =
-    !hours.includes("sunday")
+  const closedOnSunday = !hours.includes("sunday")
 
   if (mentionsSunday && closedOnSunday) {
     return "Sunday"
@@ -170,6 +176,44 @@ function getClosedDay({
   return null
 }
 
+async function isTimeAlreadyBooked({
+  businessId,
+  bookingTime,
+  openBookingId,
+}: {
+  businessId: string
+  bookingTime: string | null
+  openBookingId?: string | null
+}) {
+  if (!bookingTime) return false
+
+  const requested = new Date(bookingTime)
+
+  const start = new Date(requested)
+  start.setMinutes(requested.getMinutes() - 1)
+
+  const end = new Date(requested)
+  end.setMinutes(requested.getMinutes() + 1)
+
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("id, booking_time, status")
+    .eq("business_id", businessId)
+    .gte("booking_time", start.toISOString())
+    .lte("booking_time", end.toISOString())
+    .eq("status", "booked")
+    .maybeSingle()
+
+  if (error) {
+    console.error("DOUBLE BOOKING CHECK ERROR:", error)
+    return false
+  }
+
+  if (!data) return false
+
+  return data.id !== openBookingId
+}
+
 export async function saveBookingAndGetReply({
   businessId,
   customerId,
@@ -185,11 +229,6 @@ export async function saveBookingAndGetReply({
   isNewBookingRequest: boolean
   userText: string
 }) {
-
-console.log("BOOKING FUNCTION HIT")
-console.log("USER TEXT IN BOOKING:", userText)
-console.log("BOOKING DATA:", booking)
-
   const service =
     booking.service ??
     (isNewBookingRequest ? null : openBooking?.service) ??
@@ -224,42 +263,79 @@ console.log("BOOKING DATA:", booking)
     return `Sorry, we're closed on ${closedDay}s. Our opening hours are ${hoursText}. What day would you like instead?`
   }
 
-  const status =
-    service && bookingTime && hasRealTime
-      ? "pending"
-      : "missing_details"
+  if (!service) {
+    if (openBooking) {
+      await updateBooking(openBooking.id, {
+        service,
+        booking_time: bookingTime,
+        status: "missing_details",
+      })
+    } else {
+      await createBooking({
+        business_id: businessId,
+        customer_id: customerId,
+        service,
+        booking_time: bookingTime,
+        status: "missing_details",
+      })
+    }
+
+    return "Sure! What service would you like to book?"
+  }
+
+  if (!bookingTime || !hasRealTime) {
+    if (openBooking) {
+      await updateBooking(openBooking.id, {
+        service,
+        booking_time: bookingTime,
+        status: "missing_details",
+      })
+    } else {
+      await createBooking({
+        business_id: businessId,
+        customer_id: customerId,
+        service,
+        booking_time: bookingTime,
+        status: "missing_details",
+      })
+    }
+
+    return `Great. What date and time would you like for your ${service}?`
+  }
+
+  const alreadyBooked = await isTimeAlreadyBooked({
+    businessId,
+    bookingTime,
+    openBookingId: openBooking?.id,
+  })
+
+  if (alreadyBooked) {
+    return "Sorry, that time is already booked. What other time works for you?"
+  }
 
   if (openBooking) {
-    await updateBooking(openBooking.id, {
+    const updated = await updateBooking(openBooking.id, {
       service,
       booking_time: bookingTime,
-      status,
+      status: "booked",
     })
+
+    if (!updated) {
+      return "Sorry, I couldn't save that booking. Please try another time."
+    }
   } else {
-    await createBooking({
+    const created = await createBooking({
       business_id: businessId,
       customer_id: customerId,
       service,
       booking_time: bookingTime,
-      status,
+      status: "booked",
     })
+
+    if (!created) {
+      return "Sorry, that time may already be booked. What other time works for you?"
+    }
   }
 
-  if (userText.toLowerCase().includes("sunday")) {
-  return `Sorry, we're closed on Sundays. Our opening hours are ${hoursText}. What day would you like instead?`
-}
-
-if (!openBooking && !service) {
-  return "Sure! I'd be happy to help. What service would you like to book?"
-}
-
-  if (!service) {
-    return "What service would you like to book?"
-  }
-
-  if (!bookingTime || !hasRealTime) {
-    return `Great! What date and time would you like for your ${service}?`
-  }
-
-  return `Perfect! I've recorded your booking request for a ${service} on ${bookingTime}.`
+  return `You're booked for ${service} on ${bookingTime}.`
 }

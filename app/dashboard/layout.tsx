@@ -1,18 +1,32 @@
-import type { ReactNode } from "react"
+"use client"
+
+import { useState } from "react"
 import { Sidebar } from "@/components/dashboard/Sidebar"
 import { Topbar } from "@/components/dashboard/Topbar"
 
 export default function DashboardLayout({
   children,
 }: {
-  children: ReactNode
+  children: React.ReactNode
 }) {
-  return (
-    <div className="min-h-screen bg-gray-950 text-white flex">
-        <Sidebar />
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
-      <div className="flex-1">
-        <Topbar />
+  return (
+    <div className="min-h-screen bg-gray-950 text-white">
+      <Sidebar
+        open={sidebarOpen}
+        setOpen={setSidebarOpen}
+      />
+
+      <div
+        className={`min-h-screen transition-all duration-300 ${
+          sidebarOpen ? "md:ml-72" : "md:ml-0"
+        }`}
+      >
+        <Topbar
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+        />
 
         <main className="p-6">
           {children}
