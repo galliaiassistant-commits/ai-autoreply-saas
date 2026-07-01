@@ -4,9 +4,9 @@ import { PageHeader } from "@/components/dashboard/PageHeader"
 export default async function ConversationDetailPage({
   params,
 }: {
-  params: Promise<{ customerId: string }>
+  params: { customerId: string }
 }) {
-  const { customerId } = await params
+  const { customerId } = params
 
   const { data: customer } = await supabase
     .from("customers")

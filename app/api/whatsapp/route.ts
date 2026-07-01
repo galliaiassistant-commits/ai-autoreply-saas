@@ -422,12 +422,13 @@ console.log("BOOKING JSON:", JSON.stringify(booking, null, 2))
 
 if (!booking.cancel_booking && (booking.is_booking || openBooking)) {
   reply = await saveBookingAndGetReply({
-    businessId: business.id,
-    customerId: customer.id,
-    openBooking,
-    booking,
-    isNewBookingRequest,
-  })
+  businessId: business.id,
+  customerId: customer.id,
+  openBooking,
+  booking,
+  isNewBookingRequest,
+  userText,
+})
 }
 }
 // =========================

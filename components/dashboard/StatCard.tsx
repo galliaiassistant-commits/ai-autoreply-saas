@@ -1,10 +1,9 @@
 type StatCardProps = {
   title: string
-  value: string
+  value: string | number
   subtitle?: string
   icon?: React.ReactNode
 }
-
 export function StatCard({
   title,
   value,

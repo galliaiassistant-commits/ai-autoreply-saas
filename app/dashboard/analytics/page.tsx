@@ -1,18 +1,63 @@
+import { supabase } from "@/lib/supabase"
 import { PageHeader } from "@/components/dashboard/PageHeader"
-import { EmptyState } from "@/components/ui/EmptyState"
+import { StatCard } from "@/components/dashboard/StatCard"
 
-export default function AnalyticsPage() {
+export default async function AnalyticsPage() {
+  const [
+    { count: customerCount },
+    { count: bookingCount },
+    { count: messageCount },
+    { count: memoryCount },
+  ] = await Promise.all([
+    supabase
+      .from("customers")
+      .select("*", { count: "exact", head: true }),
+
+    supabase
+      .from("bookings")
+      .select("*", { count: "exact", head: true }),
+
+    supabase
+      .from("messages")
+      .select("*", { count: "exact", head: true }),
+
+    supabase
+      .from("customer_memory")
+      .select("*", { count: "exact", head: true }),
+  ])
+
   return (
     <div>
       <PageHeader
         title="Analytics"
-        description="Track messages, bookings, customers, and AI performance."
+        description="Track your AI assistant's performance."
       />
 
-      <EmptyState
-        title="Analytics coming soon"
-        description="Charts and performance reports will appear here."
-      />
+      <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          title="Customers"
+          value={customerCount ?? 0}
+          subtitle="Total customers"
+        />
+
+        <StatCard
+          title="Bookings"
+          value={bookingCount ?? 0}
+          subtitle="Total bookings"
+        />
+
+        <StatCard
+          title="Messages"
+          value={messageCount ?? 0}
+          subtitle="Messages exchanged"
+        />
+
+        <StatCard
+          title="Memory"
+          value={memoryCount ?? 0}
+          subtitle="Memory entries"
+        />
+      </div>
     </div>
   )
 }

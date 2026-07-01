@@ -17,16 +17,25 @@ export async function getBusiness() {
 export async function getBusinessKnowledgeText() {
   const { data, error } = await supabase
     .from("business_knowledge")
-    .select("question, answer")
-    .limit(20)
+    .select("category, question, answer")
+    .order("category")
 
   if (error) {
     console.error("BUSINESS KNOWLEDGE ERROR:", error)
+    return "No business knowledge available."
   }
 
-  return (
-    data
-      ?.map((item) => `Q: ${item.question}\nA: ${item.answer}`)
-      .join("\n\n") || "No business knowledge added yet."
-  )
+  if (!data || data.length === 0) {
+    return "No business knowledge added yet."
+  }
+
+  return data
+    .map(
+      (item) => `
+Category: ${item.category || "General"}
+Question: ${item.question}
+Answer: ${item.answer}
+`
+    )
+    .join("\n----------------------\n")
 }
