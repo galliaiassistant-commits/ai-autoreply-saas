@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
+import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import {
   Users,
@@ -9,14 +10,34 @@ import {
 } from "lucide-react"
 
 export default async function CustomersPage() {
+  const business = await getCurrentBusiness()
+
+  if (!business) {
+    return (
+      <div>
+        <PageHeader
+          title="Customers"
+          description="Manage your customers and view their profiles."
+        />
+
+        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
+          No business found for this account.
+        </div>
+      </div>
+    )
+  }
+
   const { data: customers } = await supabase
     .from("customers")
     .select("*")
+    .eq("business_id", business.id)
     .order("created_at", { ascending: false })
 
   const totalCustomers = customers?.length || 0
+
   const namedCustomers =
-    customers?.filter((c) => c.name).length || 0
+    customers?.filter((customer) => customer.name).length || 0
+
   const unnamedCustomers =
     totalCustomers - namedCustomers
 
@@ -68,7 +89,7 @@ export default async function CustomersPage() {
 
                     <div className="mt-2 flex items-center gap-2 text-sm text-slate-400">
                       <Phone size={16} />
-                      {customer.phone_number}
+                      {customer.phone_number || "No phone number"}
                     </div>
 
                     <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
@@ -80,9 +101,9 @@ export default async function CustomersPage() {
                     </div>
                   </div>
 
-                  <button className="rounded-xl bg-white px-5 py-2 font-semibold text-black">
+                  <span className="rounded-xl bg-white px-5 py-2 font-semibold text-black">
                     View Profile
-                  </button>
+                  </span>
                 </div>
               </Link>
             ))
@@ -113,7 +134,9 @@ function StatCard({
           {title}
         </p>
 
-        {icon}
+        <div className="text-slate-400">
+          {icon}
+        </div>
       </div>
 
       <p className="mt-4 text-3xl font-bold text-white">

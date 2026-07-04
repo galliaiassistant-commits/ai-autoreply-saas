@@ -1,35 +1,84 @@
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
+import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
-import { MessageSquare, Users, Bot } from "lucide-react"
+import {
+  MessageCircle,
+  Users,
+  Clock,
+  Phone,
+} from "lucide-react"
 
 export default async function ConversationsPage() {
+  const business = await getCurrentBusiness()
+
+  if (!business) {
+    return (
+      <div>
+        <PageHeader
+          title="Conversations"
+          description="View customer chats handled by Jhyro AI."
+        />
+
+        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
+          No business found for this account.
+        </div>
+      </div>
+    )
+  }
+
   const { data: customers } = await supabase
     .from("customers")
     .select("*")
+    .eq("business_id", business.id)
     .order("created_at", { ascending: false })
 
   const { data: messages } = await supabase
     .from("messages")
     .select("*")
+    .eq("business_id", business.id)
     .order("created_at", { ascending: false })
 
-  const totalConversations = customers?.length || 0
+  const conversationCustomers =
+    customers?.filter((customer) =>
+      messages?.some((message) => message.customer_id === customer.id)
+    ) || []
+
   const totalMessages = messages?.length || 0
-  const aiReplies =
-    messages?.filter((m) => m.role === "assistant").length || 0
+
+  const activeCustomers = conversationCustomers.length
+
+  const latestMessage = messages?.[0]
 
   return (
     <div>
       <PageHeader
         title="Conversations"
-        description="View customer conversations handled by Jhyro AI."
+        description="View customer chats handled by Jhyro AI."
       />
 
       <div className="mt-6 grid gap-6 md:grid-cols-3">
-        <StatBox title="Conversations" value={totalConversations} icon={<Users size={20} />} />
-        <StatBox title="Messages" value={totalMessages} icon={<MessageSquare size={20} />} />
-        <StatBox title="AI Replies" value={aiReplies} icon={<Bot size={20} />} />
+        <StatCard
+          title="Conversations"
+          value={activeCustomers}
+          icon={<Users size={20} />}
+        />
+
+        <StatCard
+          title="Messages"
+          value={totalMessages}
+          icon={<MessageCircle size={20} />}
+        />
+
+        <StatCard
+          title="Latest Activity"
+          value={
+            latestMessage?.created_at
+              ? new Date(latestMessage.created_at).toLocaleDateString()
+              : "None"
+          }
+          icon={<Clock size={20} />}
+        />
       </div>
 
       <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-6">
@@ -38,11 +87,14 @@ export default async function ConversationsPage() {
         </h2>
 
         <div className="mt-6 space-y-4">
-          {customers && customers.length > 0 ? (
-            customers.map((customer) => {
-              const latestMessage = messages?.find(
-                (msg) => msg.customer_id === customer.id
-              )
+          {conversationCustomers.length > 0 ? (
+            conversationCustomers.map((customer) => {
+              const customerMessages =
+                messages?.filter(
+                  (message) => message.customer_id === customer.id
+                ) || []
+
+              const lastMessage = customerMessages[0]
 
               return (
                 <Link
@@ -56,19 +108,30 @@ export default async function ConversationsPage() {
                         {customer.name || "Unknown Customer"}
                       </h3>
 
-                      <p className="mt-1 text-sm text-slate-400">
-                        {customer.phone_number}
+                      <div className="mt-2 flex items-center gap-2 text-sm text-slate-400">
+                        <Phone size={16} />
+                        {customer.phone_number || "No phone number"}
+                      </div>
+
+                      <p className="mt-3 max-w-2xl truncate text-sm text-slate-400">
+                        {lastMessage?.message || "No recent message"}
                       </p>
 
-                      <p className="mt-3 line-clamp-1 text-sm text-slate-300">
-                        {latestMessage?.message || "No messages yet."}
+                      <p className="mt-2 text-xs text-slate-500">
+                        {lastMessage?.created_at
+                          ? new Date(lastMessage.created_at).toLocaleString()
+                          : "No activity yet"}
                       </p>
                     </div>
 
-                    <div className="text-sm text-slate-500">
-                      {latestMessage?.created_at
-                        ? new Date(latestMessage.created_at).toLocaleString()
-                        : "No activity"}
+                    <div className="flex items-center gap-3">
+                      <span className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-slate-300">
+                        {customerMessages.length} messages
+                      </span>
+
+                      <span className="rounded-xl bg-white px-5 py-2 font-semibold text-black">
+                        Open
+                      </span>
                     </div>
                   </div>
                 </Link>
@@ -85,20 +148,25 @@ export default async function ConversationsPage() {
   )
 }
 
-function StatBox({
+function StatCard({
   title,
   value,
   icon,
 }: {
   title: string
-  value: number
+  value: string | number
   icon: React.ReactNode
 }) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-400">{title}</p>
-        {icon}
+        <p className="text-sm text-slate-400">
+          {title}
+        </p>
+
+        <div className="text-slate-400">
+          {icon}
+        </div>
       </div>
 
       <p className="mt-4 text-3xl font-bold text-white">

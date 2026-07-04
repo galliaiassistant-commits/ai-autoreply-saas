@@ -1,186 +1,433 @@
 import Link from "next/link"
+import type { ReactNode } from "react"
 import { supabase } from "@/lib/supabase"
-import { PageHeader } from "@/components/dashboard/PageHeader"
-import { StatCard } from "@/components/dashboard/StatCard"
-import { StatusBadge } from "@/components/dashboard/StatusBadge"
+import { getCurrentBusiness } from "@/lib/auth"
 import {
-  Users,
   CalendarDays,
-  MessageSquare,
-  Clock,
+  Users,
+  MessageCircle,
+  CheckCircle2,
+  AlertCircle,
   Brain,
-  Zap,
+  ArrowRight,
+  Activity,
 } from "lucide-react"
 
 export default async function DashboardPage() {
-  const { count: customersCount } = await supabase
-    .from("customers")
-    .select("*", { count: "exact", head: true })
+  const business = await getCurrentBusiness()
 
-  const { count: bookingsCount } = await supabase
-    .from("bookings")
-    .select("*", { count: "exact", head: true })
+  if (!business) {
+    return (
+      <div>
+        <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8">
+          <h1 className="text-3xl font-bold text-white">
+            Welcome to Jhyro AI
+          </h1>
 
-  const { count: messagesCount } = await supabase
-    .from("messages")
-    .select("*", { count: "exact", head: true })
+          <p className="mt-3 text-slate-400">
+            No business was found for this account. Complete onboarding first.
+          </p>
 
-  const { count: pendingBookingsCount } = await supabase
-    .from("bookings")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "pending")
+          <Link
+            href="/onboarding"
+            className="mt-6 inline-flex rounded-xl bg-white px-5 py-3 font-semibold text-black transition hover:bg-slate-200"
+          >
+            Start Onboarding
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
-  const { data: recentCustomers } = await supabase
-    .from("customers")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(5)
+  const [
+    { data: customers },
+    { data: bookings },
+    { data: messages },
+    { data: services },
+    { data: integrations },
+  ] = await Promise.all([
+    supabase
+      .from("customers")
+      .select("*")
+      .eq("business_id", business.id)
+      .order("created_at", { ascending: false }),
 
-  const { data: recentBookings } = await supabase
-    .from("bookings")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(5)
+    supabase
+      .from("bookings")
+      .select("*")
+      .eq("business_id", business.id)
+      .order("created_at", { ascending: false }),
 
-  const { data: recentMessages } = await supabase
-    .from("messages")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(5)
+    supabase
+      .from("messages")
+      .select("*")
+      .eq("business_id", business.id)
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("business_services")
+      .select("*")
+      .eq("business_id", business.id)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("business_integrations")
+      .select("*")
+      .eq("business_id", business.id),
+  ])
+
+  const safeCustomers = customers || []
+  const safeBookings = bookings || []
+  const safeMessages = messages || []
+  const safeServices = services || []
+  const safeIntegrations = integrations || []
+
+  const bookedBookings = safeBookings.filter(
+    (booking) => booking.status === "booked"
+  ).length
+
+  const completedBookings = safeBookings.filter(
+    (booking) => booking.status === "completed"
+  ).length
+
+  const missingDetails = safeBookings.filter(
+    (booking) => booking.status === "missing_details"
+  ).length
+
+  const connectedIntegrations = safeIntegrations.filter(
+    (integration) => integration.connected
+  ).length
+
+  const recentBookings = safeBookings.slice(0, 5)
+  const recentMessages = safeMessages.slice(0, 5)
+  const recentCustomers = safeCustomers.slice(0, 5)
 
   return (
     <div>
-      <PageHeader
-        title="Jhyro AI Dashboard"
-        description="Monitor customers, bookings, messages, and AI activity."
-      />
+      <section className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">
+              Jhyro AI Dashboard
+            </p>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Customers" value={`${customersCount || 0}`} subtitle="Total customers" icon={<Users size={20} />} />
-        <StatCard title="Bookings" value={`${bookingsCount || 0}`} subtitle="Total bookings" icon={<CalendarDays size={20} />} />
-        <StatCard title="Messages" value={`${messagesCount || 0}`} subtitle="Total messages" icon={<MessageSquare size={20} />} />
-        <StatCard title="Pending" value={`${pendingBookingsCount || 0}`} subtitle="Need attention" icon={<Clock size={20} />} />
-      </div>
+            <h1 className="mt-3 text-3xl font-bold text-white md:text-4xl">
+              Welcome back, {business.name || business.business_name || "Business"}
+            </h1>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-2">
-        <DashboardCard title="Quick Actions">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <QuickLink href="/dashboard/ai/knowledge/new" icon="🧠" label="Add Knowledge" />
-            <QuickLink href="/dashboard/ai/personality" icon="🤖" label="Edit Personality" />
-            <QuickLink href="/dashboard/ai/actions" icon="⚡" label="AI Actions" />
-            <QuickLink href="/dashboard/business" icon="🏢" label="Business Settings" />
+            <p className="mt-3 max-w-2xl text-slate-400">
+              Monitor your customers, bookings, messages, services, and integrations from one secure dashboard.
+            </p>
           </div>
-        </DashboardCard>
 
-        <DashboardCard title="AI Status">
-          <div className="space-y-4">
-            <StatusRow icon={<Brain size={18} />} label="Knowledge Base" value="Active" />
-            <StatusRow icon={<Zap size={18} />} label="AI Actions" value="Configured" />
-            <StatusRow icon={<MessageSquare size={18} />} label="WhatsApp AI" value="Connected" />
-          </div>
-        </DashboardCard>
-      </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-green-500/20 p-3 text-green-400">
+                <Activity size={22} />
+              </div>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-3">
-        <DashboardCard title="Recent Customers">
-          <div className="space-y-3">
-            {recentCustomers?.map((customer) => (
-              <Link
-                key={customer.id}
-                href={`/dashboard/customers/${customer.id}`}
-                className="block rounded-xl bg-slate-800 p-4 hover:bg-slate-700"
-              >
-                <p className="font-semibold text-white">{customer.name || "Unknown"}</p>
-                <p className="text-sm text-slate-400">{customer.phone_number}</p>
-              </Link>
-            ))}
-          </div>
-        </DashboardCard>
+              <div>
+                <p className="text-sm text-slate-500">
+                  System Status
+                </p>
 
-        <DashboardCard title="Recent Bookings">
-          <div className="space-y-3">
-            {recentBookings?.map((booking) => (
-              <div key={booking.id} className="rounded-xl bg-slate-800 p-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-white">{booking.service || "Unknown service"}</p>
-                  <StatusBadge status={booking.status} />
-                </div>
-                <p className="mt-2 text-sm text-slate-400">
-                  {booking.booking_time
-                    ? new Date(booking.booking_time).toLocaleString()
-                    : "Not scheduled"}
+                <p className="font-bold text-green-400">
+                  Running
                 </p>
               </div>
-            ))}
+            </div>
           </div>
-        </DashboardCard>
+        </div>
+      </section>
 
-        <DashboardCard title="Recent Messages">
-          <div className="space-y-3">
-            {recentMessages?.map((msg) => (
-              <div key={msg.id} className="rounded-xl bg-slate-800 p-4">
-                <p className="text-xs uppercase text-slate-500">{msg.role}</p>
-                <p className="mt-1 line-clamp-2 text-sm text-slate-200">{msg.message}</p>
-              </div>
-            ))}
-          </div>
-        </DashboardCard>
+      <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          title="Customers"
+          value={safeCustomers.length}
+          icon={<Users size={20} />}
+          href="/dashboard/customers"
+        />
+
+        <StatCard
+          title="Bookings"
+          value={safeBookings.length}
+          icon={<CalendarDays size={20} />}
+          href="/dashboard/bookings"
+        />
+
+        <StatCard
+          title="Messages"
+          value={safeMessages.length}
+          icon={<MessageCircle size={20} />}
+          href="/dashboard/conversations"
+        />
+
+        <StatCard
+          title="Integrations"
+          value={connectedIntegrations}
+          icon={<Activity size={20} />}
+          href="/dashboard/integrations"
+        />
       </div>
+
+      <div className="mt-6 grid gap-6 md:grid-cols-3">
+        <MiniStat
+          title="Booked"
+          value={bookedBookings}
+          icon={<CheckCircle2 size={18} />}
+        />
+
+        <MiniStat
+          title="Completed"
+          value={completedBookings}
+          icon={<CheckCircle2 size={18} />}
+        />
+
+        <MiniStat
+          title="Missing Details"
+          value={missingDetails}
+          icon={<AlertCircle size={18} />}
+        />
+      </div>
+
+      <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_380px]">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <SectionHeader
+            title="Recent Bookings"
+            href="/dashboard/bookings"
+          />
+
+          <div className="mt-6 space-y-4">
+            {recentBookings.length > 0 ? (
+              recentBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="rounded-2xl bg-slate-800 p-5"
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="font-semibold text-white">
+                        {booking.service || "Service not provided"}
+                      </p>
+
+                      <p className="mt-1 text-sm text-slate-400">
+                        {booking.booking_time
+                          ? new Date(booking.booking_time).toLocaleString()
+                          : "Missing date and time"}
+                      </p>
+                    </div>
+
+                    <span className="w-fit rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-slate-300">
+                      {booking.status || "missing_details"}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <EmptyState message="No bookings yet." />
+            )}
+          </div>
+        </section>
+
+        <aside className="space-y-6">
+          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+            <SectionHeader
+              title="Recent Customers"
+              href="/dashboard/customers"
+            />
+
+            <div className="mt-5 space-y-3">
+              {recentCustomers.length > 0 ? (
+                recentCustomers.map((customer) => (
+                  <Link
+                    key={customer.id}
+                    href={`/dashboard/conversations/${customer.id}`}
+                    className="block rounded-xl bg-slate-800 p-4 transition hover:bg-slate-700"
+                  >
+                    <p className="font-semibold text-white">
+                      {customer.name || "Unknown Customer"}
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-400">
+                      {customer.phone_number || "No phone number"}
+                    </p>
+                  </Link>
+                ))
+              ) : (
+                <EmptyState message="No customers yet." />
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+            <SectionHeader
+              title="Active Services"
+              href="/dashboard/business"
+            />
+
+            <div className="mt-5 space-y-3">
+              {safeServices.length > 0 ? (
+                safeServices.slice(0, 5).map((service) => (
+                  <div
+                    key={service.id}
+                    className="rounded-xl bg-slate-800 p-4"
+                  >
+                    <p className="font-semibold text-white">
+                      {service.name}
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-400">
+                      {service.duration_minutes || 30} minutes
+                      {service.price ? ` • $${service.price}` : ""}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <EmptyState message="No active services yet." />
+              )}
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-6">
+        <SectionHeader
+          title="Recent Messages"
+          href="/dashboard/conversations"
+        />
+
+        <div className="mt-6 space-y-4">
+          {recentMessages.length > 0 ? (
+            recentMessages.map((message) => (
+              <div
+                key={message.id}
+                className="rounded-2xl bg-slate-800 p-5"
+              >
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-400">
+                      {message.role === "assistant"
+                        ? "Jhyro AI"
+                        : "Customer"}
+                    </p>
+
+                    <p className="mt-2 max-w-4xl text-sm leading-relaxed text-white">
+                      {message.message || "Empty message"}
+                    </p>
+                  </div>
+
+                  <p className="text-xs text-slate-500">
+                    {message.created_at
+                      ? new Date(message.created_at).toLocaleString()
+                      : "Unknown"}
+                  </p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <EmptyState message="No messages yet." />
+          )}
+        </div>
+      </section>
     </div>
   )
 }
 
-function DashboardCard({
+function StatCard({
   title,
-  children,
+  value,
+  icon,
+  href,
 }: {
   title: string
-  children: React.ReactNode
-}) {
-  return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
-      <h2 className="mb-4 text-lg font-bold text-white">{title}</h2>
-      {children}
-    </section>
-  )
-}
-
-function QuickLink({
-  href,
-  icon,
-  label,
-}: {
+  value: number
+  icon: ReactNode
   href: string
-  icon: string
-  label: string
 }) {
   return (
     <Link
       href={href}
-      className="rounded-xl bg-slate-800 p-4 text-white hover:bg-slate-700"
+      className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-slate-700 hover:bg-slate-800"
     >
-      <div className="text-2xl">{icon}</div>
-      <p className="mt-2 font-semibold">{label}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-400">
+          {title}
+        </p>
+
+        <div className="text-slate-400">
+          {icon}
+        </div>
+      </div>
+
+      <p className="mt-4 text-3xl font-bold text-white">
+        {value}
+      </p>
+
+      <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-500">
+        View
+        <ArrowRight size={15} />
+      </div>
     </Link>
   )
 }
 
-function StatusRow({
-  icon,
-  label,
+function MiniStat({
+  title,
   value,
+  icon,
 }: {
-  icon: React.ReactNode
-  label: string
-  value: string
+  title: string
+  value: number
+  icon: ReactNode
 }) {
   return (
-    <div className="flex items-center justify-between rounded-xl bg-slate-800 p-4">
-      <div className="flex items-center gap-3">
-        {icon}
-        <span className="text-slate-300">{label}</span>
+    <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-400">
+          {title}
+        </p>
+
+        <div className="text-slate-400">
+          {icon}
+        </div>
       </div>
-      <span className="text-sm font-semibold text-green-400">{value}</span>
+
+      <p className="mt-3 text-2xl font-bold text-white">
+        {value}
+      </p>
+    </div>
+  )
+}
+
+function SectionHeader({
+  title,
+  href,
+}: {
+  title: string
+  href: string
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <h2 className="text-xl font-bold text-white">
+        {title}
+      </h2>
+
+      <Link
+        href={href}
+        className="inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white"
+      >
+        View all
+        <ArrowRight size={15} />
+      </Link>
+    </div>
+  )
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-700 p-8 text-center text-slate-400">
+      {message}
     </div>
   )
 }

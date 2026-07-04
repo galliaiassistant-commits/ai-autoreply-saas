@@ -1,116 +1,68 @@
+import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
-import { CheckCircle2, Clock3 } from "lucide-react"
+import IntegrationGrid from "@/components/integrations/IntegrationGrid"
+import { supabase } from "@/lib/supabase"
 
-const integrations = [
-  {
-    name: "WhatsApp Business",
-    status: "Connected",
-    description:
-      "Receive messages, reply with AI, and manage bookings.",
-    connected: true,
-  },
-  {
-    name: "Instagram",
-    status: "Coming Soon",
-    description:
-      "Automatically reply to Instagram DMs and comments.",
-    connected: false,
-  },
-  {
-    name: "Facebook Messenger",
-    status: "Coming Soon",
-    description:
-      "Handle Messenger conversations with Jhyro AI.",
-    connected: false,
-  },
-  {
-    name: "Website Chat",
-    status: "Coming Soon",
-    description:
-      "Add a live AI chat widget to your website.",
-    connected: false,
-  },
-  {
-    name: "Email",
-    status: "Coming Soon",
-    description:
-      "Reply to customer emails using AI.",
-    connected: false,
-  },
-  {
-    name: "Google Calendar",
-    status: "Coming Soon",
-    description:
-      "Sync bookings directly with your calendar.",
-    connected: false,
-  },
-  {
-    name: "Stripe",
-    status: "Coming Soon",
-    description:
-      "Accept payments and manage subscriptions.",
-    connected: false,
-  },
-  {
-    name: "SMS",
-    status: "Coming Soon",
-    description:
-      "Respond to SMS messages with AI.",
-    connected: false,
-  },
-]
+export default async function IntegrationsPage() {
+  const business = await getCurrentBusiness()
 
-export default function IntegrationsPage() {
+  if (!business) {
+    return (
+      <div>
+        <PageHeader
+          title="Integrations"
+          description="Connect and manage the services that power Jhyro AI."
+        />
+
+        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
+          No business found for this account.
+        </div>
+      </div>
+    )
+  }
+
+  const { data: integrations } = await supabase
+    .from("business_integrations")
+    .select("*")
+    .eq("business_id", business.id)
+
+  const connectedCount =
+    integrations?.filter((item) => item.connected).length || 0
+
   return (
     <div>
       <PageHeader
         title="Integrations"
-        description="Connect Jhyro AI to your business channels and services."
+        description="Connect and manage the services that power Jhyro AI."
       />
 
-      <div className="mt-6 grid gap-6 md:grid-cols-2">
-        {integrations.map((integration) => (
-          <div
-            key={integration.name}
-            className="rounded-2xl border border-slate-800 bg-slate-900 p-6"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">
-                {integration.name}
-              </h2>
-
-              {integration.connected ? (
-                <span className="flex items-center gap-2 rounded-full bg-green-500/20 px-3 py-1 text-sm text-green-400">
-                  <CheckCircle2 size={16} />
-                  Connected
-                </span>
-              ) : (
-                <span className="flex items-center gap-2 rounded-full bg-yellow-500/20 px-3 py-1 text-sm text-yellow-400">
-                  <Clock3 size={16} />
-                  Coming Soon
-                </span>
-              )}
-            </div>
-
-            <p className="mt-4 text-sm text-slate-400">
-              {integration.description}
-            </p>
-
-            <button
-              disabled={!integration.connected}
-              className={`mt-6 w-full rounded-xl py-3 font-semibold ${
-                integration.connected
-                  ? "bg-white text-black hover:bg-slate-200"
-                  : "cursor-not-allowed bg-slate-800 text-slate-500"
-              }`}
-            >
-              {integration.connected
-                ? "Manage Integration"
-                : "Not Available Yet"}
-            </button>
-          </div>
-        ))}
+      <div className="mt-6 grid gap-6 md:grid-cols-3">
+        <Stat label="Connected" value={connectedCount} />
+        <Stat label="Available" value={8} />
+        <Stat label="Health" value={connectedCount > 0 ? "Good" : "Setup"} />
       </div>
+
+      <div className="mt-10">
+        <IntegrationGrid
+          businessId={business.id}
+          records={integrations || []}
+        />
+      </div>
+    </div>
+  )
+}
+
+function Stat({
+  label,
+  value,
+}: {
+  label: string
+  value: string | number
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+      <p className="text-sm text-slate-400">{label}</p>
+      <p className="mt-3 text-3xl font-bold text-white">{value}</p>
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Sidebar } from "@/components/dashboard/Sidebar"
 import { Topbar } from "@/components/dashboard/Topbar"
+import AuthGuard from "@/components/auth/AuthGuard"
 
 export default function DashboardLayout({
   children,
@@ -12,26 +13,28 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <Sidebar
-        open={sidebarOpen}
-        setOpen={setSidebarOpen}
-      />
-
-      <div
-        className={`min-h-screen transition-all duration-300 ${
-          sidebarOpen ? "md:ml-72" : "md:ml-0"
-        }`}
-      >
-        <Topbar
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
+    <AuthGuard>
+      <div className="min-h-screen bg-gray-950 text-white">
+        <Sidebar
+          open={sidebarOpen}
+          setOpen={setSidebarOpen}
         />
 
-        <main className="p-6">
-          {children}
-        </main>
+        <div
+          className={`min-h-screen transition-all duration-300 ${
+            sidebarOpen ? "md:ml-72" : "md:ml-0"
+          }`}
+        >
+          <Topbar
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+          />
+
+          <main className="p-6">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   )
 }

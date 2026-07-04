@@ -3,18 +3,13 @@ import { supabase } from "@/lib/supabase"
 import { sendWhatsAppMessage } from "@/lib/whatsapp"
 import {
   getOpenBooking,
-  updateBooking,
-  createBooking,
   extractBooking,
   saveBookingAndGetReply,
 } from "@/lib/booking"
 import { getCustomerMemoryText } from "@/lib/memory"
 import { generateReply } from "@/lib/ai"
-import { getBusiness, getBusinessKnowledgeText, } from "@/lib/business"
 import { updateCustomerSummary } from "@/lib/summaries"
-import { detectAction } from "@/lib/actions"
 import {
-  shouldUseMainAI,
   shouldUseBooking,
   getQuickReply,
 } from "@/lib/router"
@@ -23,6 +18,42 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
+type WebhookBusiness = {
+  id: string
+  name?: string | null
+  business_name?: string | null
+  phone?: string | null
+  address?: string | null
+  hours?: string | null
+  services?: string | null
+  booking_policy?: string | null
+  personality?: string | null
+  ai_personality?: string | null
+  business_knowledge?: string | null
+  knowledge?: string | null
+  description?: string | null
+}
+
+type WhatsAppIntegration = {
+  id: string
+  business_id: string
+  provider: string
+  connected: boolean | null
+  phone_number?: string | null
+  phone_number_id?: string | null
+  business_account_id?: string | null
+  verify_token?: string | null
+  access_token?: string | null
+  metadata?: any
+}
+
+type Customer = {
+  id: string
+  business_id: string
+  phone_number: string
+  name?: string | null
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
 
@@ -30,10 +61,28 @@ export async function GET(req: Request) {
   const token = searchParams.get("hub.verify_token")
   const challenge = searchParams.get("hub.challenge")
 
-  if (
-    mode === "subscribe" &&
+  if (!mode || !token || !challenge) {
+    return new Response("Missing verification params", { status: 400 })
+  }
+
+  const isMetaVerification =
+    mode === "subscribe"
+
+  if (!isMetaVerification) {
+    return new Response("Verification failed", { status: 403 })
+  }
+
+  const tokenMatchesEnv =
     token === process.env.WHATSAPP_VERIFY_TOKEN
-  ) {
+
+  const { data: integration } = await supabase
+    .from("business_integrations")
+    .select("id")
+    .eq("provider", "whatsapp")
+    .eq("verify_token", token)
+    .maybeSingle()
+
+  if (tokenMatchesEnv || integration) {
     return new Response(challenge, { status: 200 })
   }
 
@@ -53,87 +102,366 @@ export async function POST(req: Request) {
       return Response.json({ ok: true })
     }
 
-   const from = message.from
-const userText = message?.text?.body || ""
+    const from = message.from
+    const userText = message?.text?.body?.trim() || ""
+    const phoneNumberId = value?.metadata?.phone_number_id || null
 
-console.log("FROM:", from)
-console.log("TEXT:", userText)
+    console.log("FROM:", from)
+    console.log("TEXT:", userText)
+    console.log("PHONE NUMBER ID:", phoneNumberId)
 
-if (userText.toLowerCase().includes("test reset")) {
-  await sendWhatsAppMessage(from, "TEST RESET WORKS")
-  return Response.json({ success: true })
+    const resolvedBusiness =
+  await resolveBusinessFromWebhook(phoneNumberId)
+
+if (!resolvedBusiness.business) {
+  console.error("NO BUSINESS FOUND FOR WHATSAPP WEBHOOK")
+  return Response.json(
+    { error: "No business found for webhook" },
+    { status: 200 }
+  )
 }
 
-// FIND BUSINESS
-const business = await getBusiness()
-
-if (!business) {
-  throw new Error("No business found")
-}
-const businessKnowledgeText =
-  await getBusinessKnowledgeText()
+const business = resolvedBusiness.business
+const integration = resolvedBusiness.integration
 
 console.log("BUSINESS ID:", business.id)
-console.log("BUSINESS KNOWLEDGE LOADED")
 
-// FIND CUSTOMER
-let { data: customer } = await supabase
-  .from("customers")
-  .select("*")
-  .eq("business_id", business.id)
-  .eq("phone_number", from)
-  .maybeSingle()
+    const customer = await findOrCreateCustomer({
+      businessId: business.id,
+      phoneNumber: from,
+    })
 
-// CREATE CUSTOMER IF NOT FOUND
-if (!customer) {
+    console.log("CUSTOMER ID:", customer.id)
 
+    async function finish(replyText: string) {
+      const safeReply =
+        replyText?.trim() ||
+        "Sorry, I could not generate a reply. Please try again."
+
+      await sendReplyToWhatsApp({
+        to: from,
+        message: safeReply,
+        integration,
+      })
+
+      const { error: aiMsgError } = await supabase
+        .from("messages")
+        .insert({
+          business_id: business.id,
+          customer_id: customer.id,
+          role: "assistant",
+          message: safeReply,
+        })
+
+      console.log("AI MESSAGE INSERT ERROR:", aiMsgError)
+
+      return Response.json({ success: true })
+    }
+
+    if (!userText) {
+      return finish(
+        "I received your message, but I can only read text messages right now. How can I help?"
+      )
+    }
+
+    if (userText.toLowerCase().includes("test reset")) {
+      return finish("TEST RESET WORKS")
+    }
+
+    await updateLastSeen(from)
+
+    if (userText.toLowerCase().startsWith("my name is")) {
+      await saveCustomerName({
+        customer,
+        businessId: business.id,
+        userText,
+      })
+    }
+
+    const { error: userMsgError } = await supabase
+      .from("messages")
+      .insert({
+        business_id: business.id,
+        customer_id: customer.id,
+        role: "user",
+        message: userText,
+      })
+
+    console.log("USER MESSAGE INSERT ERROR:", userMsgError)
+
+    const { data: history } = await supabase
+      .from("messages")
+      .select("role, message")
+      .eq("business_id", business.id)
+      .eq("customer_id", customer.id)
+      .order("created_at", { ascending: false })
+      .limit(8)
+
+    const memoryText =
+      await getCustomerMemoryText(customer.id)
+
+    const openBooking =
+  await getOpenBooking(business.id, customer.id)
+
+    const action = detectUserAction(userText)
+
+    console.log("DETECTED ACTION:", action)
+    console.log("OPEN BOOKING:", openBooking)
+
+    const lowerText = userText.toLowerCase()
+
+    const wantsToCancelBooking =
+      lowerText.includes("cancel") ||
+      lowerText.includes("never mind") ||
+      lowerText.includes("nevermind") ||
+      lowerText.includes("forget it") ||
+      lowerText.includes("don't want") ||
+      lowerText.includes("dont want")
+
+    if (wantsToCancelBooking && openBooking) {
+      const { error: cancelError } = await supabase
+        .from("bookings")
+        .update({
+          status: "cancelled",
+        })
+        .eq("id", openBooking.id)
+        .eq("business_id", business.id)
+        .eq("customer_id", customer.id)
+
+      console.log("CANCEL BOOKING ERROR:", cancelError)
+
+      return finish("No problem, I've cancelled that booking request.")
+    }
+
+    const friendlyClosingReplies = [
+      "you too",
+      "same to you",
+      "thanks you too",
+      "thank you you too",
+    ]
+
+    if (friendlyClosingReplies.includes(lowerText.trim())) {
+      return finish("Thank you! Take care 😊")
+    }
+
+    const quickReply = getQuickReply(action, customer?.name)
+
+    if (quickReply) {
+      return finish(quickReply)
+    }
+
+    const useBooking = shouldUseBooking(action)
+
+    const isNewBookingRequest =
+      action === "book_appointment" &&
+      !lowerText.includes("confirm") &&
+      !lowerText.includes("yes")
+
+    let reply = ""
+
+    if (useBooking) {
+      const booking = await extractBooking(
+        openai,
+        userText,
+        openBooking,
+        isNewBookingRequest
+      )
+
+      console.log("BOOKING EXTRACTED:", booking)
+      console.log("BOOKING JSON:", JSON.stringify(booking, null, 2))
+
+      if (booking.cancel_booking && openBooking) {
+        const { error: cancelError } = await supabase
+          .from("bookings")
+          .update({
+            status: "cancelled",
+          })
+          .eq("id", openBooking.id)
+          .eq("business_id", business.id)
+          .eq("customer_id", customer.id)
+
+        console.log("BOOKING CANCEL ERROR:", cancelError)
+
+        reply = "No problem, I've cancelled that booking request."
+      } else if (booking.is_booking || openBooking) {
+        reply = await saveBookingAndGetReply({
+          businessId: business.id,
+          customerId: customer.id,
+          openBooking,
+          booking,
+          isNewBookingRequest,
+          userText,
+        })
+      } else {
+        reply = "Sure, what service would you like to book?"
+      }
+    } else {
+      const aiMessages = buildAIMessages({
+        business,
+        customer,
+        memoryText,
+        history: history || [],
+        action,
+        openBooking,
+        userText,
+      })
+
+      reply = await generateReply(openai, aiMessages)
+    }
+
+    await saveExtractedMemories({
+      customerId: customer.id,
+      userText,
+    })
+
+    await updateCustomerSummary(
+      openai,
+      customer.id,
+      userText,
+      memoryText
+    )
+
+    return finish(reply)
+  } catch (err) {
+    console.error("WEBHOOK ERROR:", err)
+    return Response.json({ error: "failed" }, { status: 200 })
+  }
+}
+
+async function resolveBusinessFromWebhook(phoneNumberId: string | null) {
+  let integration: WhatsAppIntegration | null = null
+
+  if (phoneNumberId) {
+    const { data } = await supabase
+      .from("business_integrations")
+      .select("*")
+      .eq("provider", "whatsapp")
+      .eq("phone_number_id", phoneNumberId)
+      .maybeSingle<WhatsAppIntegration>()
+
+    integration = data || null
+  }
+
+  if (!integration) {
+    console.warn(
+      "No matching business_integrations row found for phone_number_id:",
+      phoneNumberId
+    )
+  }
+
+  if (!integration?.business_id) {
+    const fallbackBusinessId =
+      process.env.DEFAULT_BUSINESS_ID
+
+    if (!fallbackBusinessId) {
+      return {
+        business: null,
+        integration: null,
+      }
+    }
+
+    const { data: fallbackBusiness } = await supabase
+      .from("businesses")
+      .select("*")
+      .eq("id", fallbackBusinessId)
+      .maybeSingle<WebhookBusiness>()
+
+    return {
+      business: fallbackBusiness || null,
+      integration: null,
+    }
+  }
+
+  const { data: business } = await supabase
+    .from("businesses")
+    .select("*")
+    .eq("id", integration.business_id)
+    .maybeSingle<WebhookBusiness>()
+
+  return {
+    business: business || null,
+    integration,
+  }
+}
+
+async function findOrCreateCustomer({
+  businessId,
+  phoneNumber,
+}: {
+  businessId: string
+  phoneNumber: string
+}) {
+  const { data: existingCustomer } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("phone_number", phoneNumber)
+    .maybeSingle<Customer>()
+
+  if (existingCustomer) {
+    return existingCustomer
+  }
 
   const { data: newCustomer, error } = await supabase
     .from("customers")
     .insert({
-      business_id: business.id,
-      phone_number: from,
+      business_id: businessId,
+      phone_number: phoneNumber,
     })
-    .select()
-    .single()
+    .select("*")
+    .single<Customer>()
 
-  if (error) throw error
+  if (error) {
+    throw error
+  }
 
-  customer = newCustomer
+  return newCustomer
 }
 
-console.log("CUSTOMER:", customer)
+async function updateLastSeen(phoneNumber: string) {
+  const { error } = await supabase
+    .from("users")
+    .upsert({
+      phone_number: phoneNumber,
+      last_seen: new Date().toISOString(),
+    })
 
-    
-    // =========================
-    // 1. UPSERT USER (ALWAYS CREATE)
-    // =========================
-    const { error: userError } = await supabase
-      .from("users")
-      .upsert({
-        phone_number: from,
-        last_seen: new Date().toISOString(),
-      })
+  console.log("USER UPSERT ERROR:", error)
+}
 
-    console.log("USER ERROR:", userError)
-
-    // =========================
-    // 2. SAVE NAME (FIXED)
-    // =========================
-    if (userText.toLowerCase().startsWith("my name is")) {
+async function saveCustomerName({
+  customer,
+  businessId,
+  userText,
+}: {
+  customer: Customer
+  businessId: string
+  userText: string
+}) {
   const name = userText.replace(/my name is/i, "").trim()
 
-  // Update customer name
+  if (!name) return
+
   const { error: customerError } = await supabase
     .from("customers")
     .update({
       name,
     })
     .eq("id", customer.id)
+    .eq("business_id", businessId)
 
   console.log("CUSTOMER NAME ERROR:", customerError)
 
-  // Save long-term memory
+  const { data: existingMemory } = await supabase
+    .from("customer_memory")
+    .select("id")
+    .eq("customer_id", customer.id)
+    .eq("type", "name")
+    .ilike("content", `%${name}%`)
+    .maybeSingle()
+
+  if (existingMemory) return
+
   const { error: memoryError } = await supabase
     .from("customer_memory")
     .insert({
@@ -143,171 +471,109 @@ console.log("CUSTOMER:", customer)
       confidence: 1.0,
     })
 
-  console.log("MEMORY ERROR:", memoryError)
-
-  console.log("SAVED NAME:", name)
+  console.log("NAME MEMORY ERROR:", memoryError)
 }
 
-    // =========================
-    // 3. LOAD USER PROFILE
-    // =========================
-    const { data: userProfile } = await supabase
-      .from("users")
-      .select("*")
-      .eq("phone_number", from)
-      .maybeSingle()
+function detectUserAction(userText: string) {
+  const lowerText = userText.toLowerCase()
 
-    console.log("PROFILE:", userProfile)
+  if (lowerText === "hi" || lowerText === "hello" || lowerText === "hey") {
+    return "greeting"
+  }
 
-    // =========================
-    // 4. SAVE USER MESSAGE
-    // =========================
-    await supabase.from("conversations").insert({
-      phone_number: from,
-      role: "user",
-      message: userText,
-    })
+  if (lowerText.includes("thank")) {
+    return "thank_you"
+  }
 
-const { error: msgError } = await supabase
-  .from("messages")
-  .insert({
-    business_id: business.id,
-    customer_id: customer.id,
-    role: "user",
-    message: userText,
-  })
+  if (lowerText.includes("bye")) {
+    return "goodbye"
+  }
 
-console.log("MESSAGE INSERT ERROR:", msgError)
+  if (
+    lowerText.includes("hour") ||
+    lowerText.includes("open") ||
+    lowerText.includes("close") ||
+    lowerText.includes("time")
+  ) {
+    return "opening_hours"
+  }
 
-    // =========================
-    // 5. LOAD HISTORY
-    // =========================
-    const { data: history } = await supabase
-      .from("conversations")
-      .select("role, message")
-      .eq("phone_number", from)
-      .order("created_at", { ascending: false })
-      .limit(6)
+  if (
+    lowerText.includes("price") ||
+    lowerText.includes("cost") ||
+    lowerText.includes("location") ||
+    lowerText.includes("address") ||
+    lowerText.includes("service")
+  ) {
+    return "business_question"
+  }
 
-    // =========================
-    // 6. OPENAI MEMORY PROMPT
-    // =========================
+  if (
+    lowerText.includes("cancel") ||
+    lowerText.includes("never mind") ||
+    lowerText.includes("nevermind")
+  ) {
+    return "cancel_booking"
+  }
 
-const memoryText =
-  await getCustomerMemoryText(customer.id)
+  if (
+    lowerText.includes("change") ||
+    lowerText.includes("move") ||
+    lowerText.includes("reschedule")
+  ) {
+    return "reschedule_booking"
+  }
 
-const openBooking =
-  await getOpenBooking(customer.id)
+  if (
+    lowerText.includes("book") ||
+    lowerText.includes("appointment") ||
+    lowerText.includes("schedule") ||
+    lowerText.includes("reserve")
+  ) {
+    return "book_appointment"
+  }
 
-const lowerText = userText.toLowerCase()
-
-const wantsToCancelBooking =
-  lowerText.includes("cancel") ||
-  lowerText.includes("never mind") ||
-  lowerText.includes("nevermind") ||
-  lowerText.includes("forget it") ||
-  lowerText.includes("don't want") ||
-  lowerText.includes("dont want")
-
-let action: string = "general_chat"
-
-if (lowerText === "hi" || lowerText === "hello" || lowerText === "hey") {
-  action = "greeting"
-} else if (lowerText.includes("thank")) {
-  action = "thank_you"
-} else if (lowerText.includes("bye")) {
-  action = "goodbye"
-} else if (
-  lowerText.includes("book") ||
-  lowerText.includes("appointment") ||
-  lowerText.includes("schedule")
-) {
-  action = "book_appointment"
-} else if (
-  lowerText.includes("change") ||
-  lowerText.includes("move") ||
-  lowerText.includes("reschedule")
-) {
-  action = "reschedule_booking"
-}
-console.log("USER TEXT:", userText)
-console.log("DETECTED ACTION:", action)
-
-const useBooking =
-  shouldUseBooking(action)
-
-if (wantsToCancelBooking && openBooking) {
-  await supabase
-    .from("bookings")
-    .update({ status: "cancelled" })
-    .eq("id", openBooking.id)
-
-console.log("WANTS CANCEL:", wantsToCancelBooking)
-console.log("OPEN BOOKING FOR CANCEL:", openBooking)
-
-  await sendWhatsAppMessage(
-  from,
-  "No problem, I've cancelled that booking request."
-)
-return Response.json({ success: true })
-}
-  console.log("OPEN BOOKING:", openBooking)
-
-// =========================
-// ACTION DETECTION
-// =========================
-
-console.log("ACTION:", action)
-
-const isNewBookingRequest =
-  action === "book_appointment" &&
-  !lowerText.includes("confirm") &&
-  !lowerText.includes("yes")
-
-// =========================
-// QUICK REPLIES
-// =========================
-
-
-
-const friendlyClosingReplies = [
-  "you too",
-  "same to you",
-  "thanks you too",
-  "thank you you too",
-]
-
-if (friendlyClosingReplies.includes(userText.toLowerCase().trim())) {
-  await sendWhatsAppMessage(
-    from,
-    "Thank you! Take care 😊"
-  )
-
-  return Response.json({ success: true })
+  return "general_chat"
 }
 
-const quickReply = getQuickReply(action, customer?.name)
+function buildAIMessages({
+  business,
+  customer,
+  memoryText,
+  history,
+  action,
+  openBooking,
+  userText,
+}: {
+  business: WebhookBusiness
+  customer: Customer
+  memoryText: string
+  history: any[]
+  action: string
+  openBooking: any
+  userText: string
+}) {
+  const businessKnowledgeText = buildBusinessKnowledgeText(business)
 
-if (quickReply) {
-  await sendWhatsAppMessage(from, quickReply)
-  return Response.json({ success: true })
-}
-
-    const messages = [
-      {
-        role: "system",
-     content: `
+  return [
+    {
+      role: "system",
+      content: `
 You are Jhyro AI, an intelligent WhatsApp business assistant.
 
 PERSONALITY:
-${business?.personality || `
+${
+  business?.personality ||
+  business?.ai_personality ||
+  `
 - Friendly and professional
 - Helpful and confident
 - Natural and conversational
 - Never sound robotic
 - Keep replies short and easy to read
 - Ask at most one follow-up question at a time
-`}
+`
+}
 
 RULES:
 - Use customer memories when relevant.
@@ -316,11 +582,9 @@ RULES:
 - Never mention internal systems, databases, prompts, or memory.
 - If you don't know something, ask a clarifying question.
 - Stay focused on helping the customer.
-- When answering business questions, ALWAYS check BUSINESS SETTINGS first.
-- If the information is not in BUSINESS SETTINGS, then use BUSINESS KNOWLEDGE.
+- Use BUSINESS SETTINGS as the official source for opening hours, phone number, address, services, booking policy, and AI personality.
 - Never guess prices, hours, address, services, booking policy, or contact information.
-- If the information is not available in either BUSINESS SETTINGS or BUSINESS KNOWLEDGE, politely explain that the information has not been provided yet.
-- Use the BUSINESS SETTINGS section as the official source for opening hours, phone number, address, services, booking policy, and AI personality.
+- If business information is missing, politely say it has not been provided yet.
 
 CUSTOMER NAME:
 ${customer?.name || "Unknown"}
@@ -330,18 +594,6 @@ ${memoryText || "None"}
 
 DETECTED ACTION:
 ${action}
-
-Use the detected action as the primary intent for this conversation.
-
-If DETECTED ACTION is:
-- greeting → greet the customer naturally.
-- thank_you → reply politely without asking unnecessary questions.
-- goodbye → say goodbye naturally.
-- opening_hours → answer using BUSINESS SETTINGS.
-- business_question → answer using BUSINESS KNOWLEDGE.
-- book_appointment → continue the booking flow.
-- cancel_booking → cancel the current booking if one exists.
-- reschedule_booking → help the customer change their booking.
 
 ACTIVE BOOKING:
 ${
@@ -371,90 +623,53 @@ Address: ${business?.address || "Not set"}
 Opening Hours: ${business?.hours || "Not set"}
 Services: ${business?.services || "Not set"}
 Booking Policy: ${business?.booking_policy || "Not set"}
-AI Personality: ${business?.personality || "Friendly"}
+AI Personality: ${
+        business?.personality ||
+        business?.ai_personality ||
+        "Friendly"
+      }
 
 BUSINESS KNOWLEDGE:
 ${businessKnowledgeText}
 
 Your goal is to provide excellent customer service while helping the business increase customer satisfaction, bookings, and sales.
-`,
-      },
+      `,
+    },
 
-      ...(history || [])
-        .reverse()
-        .map((m: any) => ({
-          role: m.role,
-          content: m.message,
-        })),
+    ...history
+      .reverse()
+      .map((message: any) => ({
+        role: message.role,
+        content: message.message,
+      })),
 
-      {
-        role: "user",
-        content: userText,
-      },
-    ]
-
-
-// =========================
-// MAIN AI
-// =========================
-
-let reply = ""
-
-if (!useBooking) {
-  reply = await generateReply(openai, messages)
-}
-    // =========================
-    // 7. SAVE AI RESPONSE
-    // =========================
-
-
-// =========================
-// BOOKING EXTRACTION
-// =========================
-if (useBooking) {
-  const booking = await extractBooking(
-  openai,
-  userText,
-  openBooking,
-  isNewBookingRequest
-)
-
-console.log("BOOKING EXTRACTED:", booking)
-console.log("BOOKING JSON:", JSON.stringify(booking, null, 2))
-
-if (!booking.cancel_booking && (booking.is_booking || openBooking)) {
-  reply = await saveBookingAndGetReply({
-  businessId: business.id,
-  customerId: customer.id,
-  openBooking,
-  booking,
-  isNewBookingRequest,
-  userText,
-})
-}
-}
-// =========================
-// SEND WHATSAPP MESSAGE
-// =========================
-await sendWhatsAppMessage(from, reply)
-
-    const { error: aiMsgError } = await supabase
-  .from("messages")
-  .insert({
-    business_id: business.id,
-    customer_id: customer.id,
-    role: "assistant",
-    message: reply,
-  })
-
-console.log("AI MESSAGE INSERT ERROR:", aiMsgError)
-
-const memoryExtract = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages: [
     {
-      role: "system",
-      content: `
+      role: "user",
+      content: userText,
+    },
+  ]
+}
+
+function buildBusinessKnowledgeText(business: WebhookBusiness) {
+  return `
+Description: ${business.description || "Not set"}
+Knowledge: ${business.knowledge || business.business_knowledge || "Not set"}
+  `.trim()
+}
+
+async function saveExtractedMemories({
+  customerId,
+  userText,
+}: {
+  customerId: string
+  userText: string
+}) {
+  const memoryExtract = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `
 Extract useful long-term customer memory from this message.
 
 Only save stable facts useful for a business assistant.
@@ -470,66 +685,103 @@ Example:
 ]
 
 If nothing useful, return [].
-      `,
-    },
-    {
-      role: "user",
-      content: userText,
-    },
-  ],
-})
+        `,
+      },
+      {
+        role: "user",
+        content: userText,
+      },
+    ],
+  })
 
-let extractedMemories: any[] = []
+  let extractedMemories: any[] = []
 
-try {
-  extractedMemories = JSON.parse(
-    memoryExtract.choices[0].message.content || "[]"
-  )
-} catch {
-  extractedMemories = []
-}
-
-for (const memory of extractedMemories) {
-  if (!memory.content) continue
-
-  const { data: existingMemory } = await supabase
-    .from("customer_memory")
-    .select("*")
-    .eq("customer_id", customer.id)
-    .ilike("content", `%${memory.content}%`)
-    .maybeSingle()
-
-  if (existingMemory) {
-    console.log("MEMORY ALREADY EXISTS:", memory.content)
-    continue
+  try {
+    extractedMemories = JSON.parse(
+      memoryExtract.choices[0].message.content || "[]"
+    )
+  } catch {
+    extractedMemories = []
   }
 
-  const { error: saveMemoryError } = await supabase
-    .from("customer_memory")
-    .insert({
-      customer_id: customer.id,
-      type: memory.type || "fact",
-      content: memory.content,
-      confidence: memory.confidence || 0.8,
-    })
+  for (const memory of extractedMemories) {
+    if (!memory.content) continue
 
-  console.log("SAVE MEMORY ERROR:", saveMemoryError)
+    const { data: existingMemory } = await supabase
+      .from("customer_memory")
+      .select("id")
+      .eq("customer_id", customerId)
+      .ilike("content", `%${memory.content}%`)
+      .maybeSingle()
+
+    if (existingMemory) {
+      console.log("MEMORY ALREADY EXISTS:", memory.content)
+      continue
+    }
+
+    const { error: saveMemoryError } = await supabase
+      .from("customer_memory")
+      .insert({
+        customer_id: customerId,
+        type: memory.type || "fact",
+        content: memory.content,
+        confidence: memory.confidence || 0.8,
+      })
+
+    console.log("SAVE MEMORY ERROR:", saveMemoryError)
+  }
 }
 
-await updateCustomerSummary(
-  openai,
-  customer.id,
-  userText,
-  memoryText
-)
+async function sendReplyToWhatsApp({
+  to,
+  message,
+  integration,
+}: {
+  to: string
+  message: string
+  integration: WhatsAppIntegration | null
+}) {
+  const accessToken =
+    integration?.access_token ||
+    process.env.WHATSAPP_ACCESS_TOKEN
 
-    // =========================
-    // 8. SEND WHATSAPP MESSAGE
-    // =========================
+  const phoneNumberId =
+    integration?.phone_number_id ||
+    process.env.WHATSAPP_PHONE_NUMBER_ID
 
-    return Response.json({ success: true })
-  } catch (err) {
-    console.error("WEBHOOK ERROR:", err)
-    return Response.json({ error: "failed" })
+  if (!accessToken || !phoneNumberId) {
+    await sendWhatsAppMessage(to, message)
+    return
+  }
+
+  const graphVersion =
+    process.env.WHATSAPP_GRAPH_VERSION || "v20.0"
+
+  const response = await fetch(
+    `https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        text: {
+          body: message,
+        },
+      }),
+    }
+  )
+
+  const data = await response.json()
+
+  console.log("WHATSAPP SEND RESPONSE:", data)
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error?.message || "Failed to send WhatsApp message"
+    )
   }
 }

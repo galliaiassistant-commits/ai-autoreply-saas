@@ -1,25 +1,51 @@
 import { supabase } from "@/lib/supabase"
+import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import { StatusBadge } from "@/components/dashboard/StatusBadge"
 import BookingActions from "../BookingActions"
+import BookingCalendar from "@/components/calendar/BookingCalendar"
 import {
   CalendarDays,
-  Clock,
   CheckCircle2,
   AlertCircle,
 } from "lucide-react"
 
 export default async function BookingsPage() {
+  const business = await getCurrentBusiness()
+
+  if (!business) {
+    return (
+      <div>
+        <PageHeader
+          title="Bookings"
+          description="View and manage customer appointment requests."
+        />
+
+        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
+          No business found for this account.
+        </div>
+      </div>
+    )
+  }
+
   const { data: bookings } = await supabase
     .from("bookings")
     .select("*")
+    .eq("business_id", business.id)
     .order("created_at", { ascending: false })
 
+  const { data: services } = await supabase
+    .from("business_services")
+    .select("id, name, price, duration_minutes, is_active")
+    .eq("business_id", business.id)
+    .eq("is_active", true)
+    .order("name", { ascending: true })
+
   const totalBookings = bookings?.length || 0
-  const pendingBookings =
-    bookings?.filter((b) => b.status === "pending").length || 0
-  const confirmedBookings =
-    bookings?.filter((b) => b.status === "confirmed").length || 0
+  const bookedBookings =
+    bookings?.filter((b) => b.status === "booked").length || 0
+  const completedBookings =
+    bookings?.filter((b) => b.status === "completed").length || 0
   const missingDetails =
     bookings?.filter((b) => b.status === "missing_details").length || 0
 
@@ -31,10 +57,29 @@ export default async function BookingsPage() {
       />
 
       <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <BookingStat title="Total" value={totalBookings} icon={<CalendarDays size={20} />} />
-        <BookingStat title="Pending" value={pendingBookings} icon={<Clock size={20} />} />
-        <BookingStat title="Confirmed" value={confirmedBookings} icon={<CheckCircle2 size={20} />} />
-        <BookingStat title="Missing Details" value={missingDetails} icon={<AlertCircle size={20} />} />
+        <BookingStat
+          title="Total"
+          value={totalBookings}
+          icon={<CalendarDays size={20} />}
+        />
+
+        <BookingStat
+          title="Booked"
+          value={bookedBookings}
+          icon={<CalendarDays size={20} />}
+        />
+
+        <BookingStat
+          title="Completed"
+          value={completedBookings}
+          icon={<CheckCircle2 size={20} />}
+        />
+
+        <BookingStat
+          title="Missing Details"
+          value={missingDetails}
+          icon={<AlertCircle size={20} />}
+        />
       </div>
 
       <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-6">
@@ -70,9 +115,13 @@ export default async function BookingsPage() {
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <StatusBadge status={booking.status || "pending"} />
+                    <StatusBadge status={booking.status || "missing_details"} />
 
-                    <BookingActions bookingId={booking.id} />
+                    <BookingActions
+  bookingId={booking.id}
+  businessId={business.id}
+  status={booking.status}
+/>
                   </div>
                 </div>
               </div>
@@ -84,6 +133,12 @@ export default async function BookingsPage() {
           )}
         </div>
       </div>
+
+      <BookingCalendar
+        bookings={bookings || []}
+        services={services || []}
+        businessId={business.id}
+      />
     </div>
   )
 }
