@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { saveBusinessPersonality } from "./actions"
 
 type Props = {
   businessId: string
@@ -25,17 +25,23 @@ export default function PersonalitySettings({
   const [emoji, setEmoji] = useState("Light")
 
   const [goals, setGoals] = useState<string[]>(
-    initialGoals.length > 0 ? initialGoals : ["Customer Support"]
+    initialGoals.length > 0
+      ? initialGoals
+      : ["Customer Support"]
   )
 
   const [greetingStyle, setGreetingStyle] = useState("Warm")
-  const [followUps, setFollowUps] = useState("Ask when needed")
+  const [followUps, setFollowUps] =
+    useState("Ask when needed")
   const [useName, setUseName] = useState("Sometimes")
   const [upsell, setUpsell] = useState("Softly")
 
-  const [responseLength, setResponseLength] = useState("Short")
-  const [strictness, setStrictness] = useState("Never guess")
-  const [proactiveness, setProactiveness] = useState("Suggest help")
+  const [responseLength, setResponseLength] =
+    useState("Short")
+  const [strictness, setStrictness] =
+    useState("Never guess")
+  const [proactiveness, setProactiveness] =
+    useState("Suggest help")
   const [creativity, setCreativity] = useState("Balanced")
 
   const [language, setLanguage] = useState("English")
@@ -67,21 +73,27 @@ Custom Instructions:
 ${customInstructions}
 `
 
+  const tabs = [
+    { id: "personality", label: "🎭 Personality" },
+    { id: "goals", label: "💼 Goals" },
+    { id: "conversation", label: "🗣️ Conversation" },
+    { id: "intelligence", label: "🧠 Intelligence" },
+    { id: "language", label: "🌍 Language" },
+    { id: "test", label: "🧪 Test AI" },
+  ]
+
   async function savePersonality() {
     setLoading(true)
 
-    const { error } = await supabase
-      .from("businesses")
-      .update({
-        personality: generatedPersonality,
-        ai_goals: goals,
-      })
-      .eq("id", businessId)
+    const result = await saveBusinessPersonality({
+      personality: generatedPersonality,
+      goals,
+    })
 
     setLoading(false)
 
-    if (error) {
-      alert(error.message)
+    if (!result.ok) {
+      alert(result.error)
       return
     }
 
@@ -128,21 +140,16 @@ ${customInstructions}
     }
   }
 
-  const tabs = [
-    { id: "personality", label: "🎭 Personality" },
-    { id: "goals", label: "💼 Goals" },
-    { id: "conversation", label: "🗣️ Conversation" },
-    { id: "intelligence", label: "🧠 Intelligence" },
-    { id: "language", label: "🌍 Language" },
-    { id: "test", label: "🧪 Test AI" },
-  ]
-
   return (
-    <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-6">
+    <div
+      data-business-id={businessId}
+      className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-6"
+    >
       <div className="mb-6 flex flex-wrap gap-3">
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            type="button"
             onClick={() => setActiveTab(tab.id)}
             className={
               activeTab === tab.id
@@ -228,6 +235,7 @@ ${customInstructions}
               ].map((item) => (
                 <button
                   key={item}
+                  type="button"
                   onClick={() => toggleGoal(item)}
                   className={
                     goals.includes(item)
@@ -391,12 +399,15 @@ ${customInstructions}
 
               <textarea
                 value={testMessage}
-                onChange={(e) => setTestMessage(e.target.value)}
+                onChange={(e) =>
+                  setTestMessage(e.target.value)
+                }
                 placeholder="Example: I want to book an appointment for Sunday."
                 className="min-h-32 w-full rounded-xl bg-slate-800 p-4 text-white outline-none"
               />
 
               <button
+                type="button"
                 onClick={testAI}
                 disabled={testing}
                 className="mt-4 rounded-xl bg-white px-5 py-3 font-semibold text-black disabled:opacity-50"
@@ -424,6 +435,7 @@ ${customInstructions}
       </div>
 
       <button
+        type="button"
         onClick={savePersonality}
         disabled={loading}
         className="mt-6 rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
@@ -477,7 +489,9 @@ function SelectBox({
         className="w-full rounded-xl bg-slate-800 p-3 text-white outline-none"
       >
         {options.map((option) => (
-          <option key={option}>{option}</option>
+          <option key={option} value={option}>
+            {option}
+          </option>
         ))}
       </select>
     </div>

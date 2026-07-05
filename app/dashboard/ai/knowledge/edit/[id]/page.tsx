@@ -1,28 +1,203 @@
+import Link from "next/link"
+import { redirect } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
-import KnowledgeForm from "../../KnowledgeForm"
+import { ArrowLeft, Brain, Save } from "lucide-react"
+
+type PageProps = {
+  params: Promise<{
+    id: string
+  }>
+  searchParams?: Promise<{
+    error?: string
+  }>
+}
+
+type KnowledgeItem = {
+  id: string
+  business_id: string
+  question: string | null
+  answer: string | null
+  created_at: string | null
+}
 
 export default async function EditKnowledgePage({
   params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+  searchParams,
+}: PageProps) {
   const { id } = await params
+  const business = await getCurrentBusiness()
+  const queryParams = await searchParams
+  const error = queryParams?.error
 
-  const { data: knowledge } = await supabase
+  if (!business) {
+    redirect("/auth/sign-in")
+  }
+
+  const { data: knowledge, error: loadError } = await supabase
     .from("business_knowledge")
-    .select("*")
+    .select("id, business_id, question, answer, created_at")
     .eq("id", id)
-    .single()
+    .eq("business_id", business.id)
+    .maybeSingle<KnowledgeItem>()
+
+  if (loadError) {
+    console.error("LOAD KNOWLEDGE ERROR:", loadError)
+  }
+
+  if (!knowledge) {
+    return (
+      <div>
+        <PageHeader
+          title="Knowledge Not Found"
+          description="This knowledge item does not belong to your business."
+        />
+
+        <Link
+          href="/dashboard/ai/knowledge"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-black transition hover:bg-slate-200"
+        >
+          <ArrowLeft size={18} />
+          Back to AI Knowledge
+        </Link>
+      </div>
+    )
+  }
+
+  async function updateKnowledge(formData: FormData) {
+    "use server"
+
+    const business = await getCurrentBusiness()
+
+    if (!business) {
+      redirect("/auth/sign-in")
+    }
+
+    const question = String(formData.get("question") || "").trim()
+    const answer = String(formData.get("answer") || "").trim()
+    const knowledgeId = String(formData.get("knowledgeId") || "").trim()
+
+    if (!question || !answer || !knowledgeId) {
+      redirect(`/dashboard/ai/knowledge/edit/${knowledgeId || id}?error=missing`)
+    }
+
+    const { error } = await supabase
+      .from("business_knowledge")
+      .update({
+        question,
+        answer,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", knowledgeId)
+      .eq("business_id", business.id)
+
+    if (error) {
+      console.error("UPDATE KNOWLEDGE ERROR:", error)
+      redirect(`/dashboard/ai/knowledge/edit/${knowledgeId}?error=save`)
+    }
+
+    redirect("/dashboard/ai/knowledge")
+  }
 
   return (
     <div>
+      <div className="mb-6">
+        <Link
+          href="/dashboard/ai/knowledge"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-400 transition hover:text-white"
+        >
+          <ArrowLeft size={16} />
+          Back to AI Knowledge
+        </Link>
+      </div>
+
       <PageHeader
-        title="Edit Knowledge"
-        description="Update what Jhyro AI knows."
+        title="Edit AI Knowledge"
+        description="Update a business-specific answer Jhyro AI can use."
       />
 
-      <KnowledgeForm knowledge={knowledge} />
+      <section className="mt-6 rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-8">
+        <div className="flex items-center gap-4">
+          <div className="rounded-2xl bg-slate-800 p-4 text-slate-300">
+            <Brain size={28} />
+          </div>
+
+          <div>
+            <h1 className="text-2xl font-bold text-white">
+              Secure Edit Mode
+            </h1>
+
+            <p className="mt-1 text-sm text-slate-400">
+              Editing knowledge only for{" "}
+              <span className="font-semibold text-white">
+                {business.business_name || "this business"}
+              </span>
+              .
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {error && (
+        <div className="mt-6 rounded-2xl border border-red-500/40 bg-red-500/10 p-5 text-red-300">
+          {error === "missing"
+            ? "Please enter both a question and an answer."
+            : "Could not update this knowledge item. Please try again."}
+        </div>
+      )}
+
+      <form
+        action={updateKnowledge}
+        className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-6"
+      >
+        <input
+          type="hidden"
+          name="knowledgeId"
+          value={knowledge.id}
+        />
+
+        <div>
+          <label className="text-sm font-semibold text-slate-300">
+            Question
+          </label>
+
+          <input
+            name="question"
+            required
+            defaultValue={knowledge.question || ""}
+            className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950 p-4 text-white outline-none placeholder:text-slate-600 focus:border-slate-600"
+          />
+        </div>
+
+        <div className="mt-6">
+          <label className="text-sm font-semibold text-slate-300">
+            Answer
+          </label>
+
+          <textarea
+            name="answer"
+            required
+            rows={8}
+            defaultValue={knowledge.answer || ""}
+            className="mt-2 w-full resize-none rounded-xl border border-slate-800 bg-slate-950 p-4 text-white outline-none placeholder:text-slate-600 focus:border-slate-600"
+          />
+        </div>
+
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
+            This update is protected by both knowledge ID and business ID.
+          </p>
+
+          <button
+            type="submit"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-black transition hover:bg-slate-200"
+          >
+            <Save size={18} />
+            Save Changes
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

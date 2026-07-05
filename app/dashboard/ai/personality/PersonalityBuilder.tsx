@@ -2,58 +2,12 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { saveBusinessPersonality } from "./actions"
 
 type Props = {
   businessId: string
   initialPersonality: string
 }
-
-export default function PersonalityBuilder({
-  businessId,
-  initialPersonality,
-}: Props) {
-  const router = useRouter()
-
-  const [tone, setTone] = useState("Friendly")
-  const [length, setLength] = useState("Short")
-  const [emoji, setEmoji] = useState("Light")
-  const [salesStyle, setSalesStyle] = useState("Balanced")
-  const [customInstructions, setCustomInstructions] =
-    useState(initialPersonality)
-
-  const [loading, setLoading] = useState(false)
-
-  const generatedPersonality = `
-Tone: ${tone}
-Response Length: ${length}
-Emoji Usage: ${emoji}
-Sales Style: ${salesStyle}
-
-Custom Instructions:
-${customInstructions}
-`
-
-  async function savePersonality() {
-    setLoading(true)
-
-    const { error } = await supabase
-      .from("businesses")
-      .update({
-        personality: generatedPersonality,
-      })
-      .eq("id", businessId)
-
-    setLoading(false)
-
-    if (error) {
-      alert(error.message)
-      return
-    }
-
-    router.refresh()
-    alert("AI personality updated!")
-  }
 
 const presets = {
   Friendly: {
@@ -93,68 +47,120 @@ const presets = {
   },
 }
 
-function loadPreset(name: keyof typeof presets) {
-  const preset = presets[name]
+export default function PersonalityBuilder({
+  businessId,
+  initialPersonality,
+}: Props) {
+  const router = useRouter()
 
-  setTone(preset.tone)
-  setLength(preset.length)
-  setEmoji(preset.emoji)
-  setSalesStyle(preset.salesStyle)
-  setCustomInstructions(preset.instructions)
-}
+  const [tone, setTone] = useState("Friendly")
+  const [length, setLength] = useState("Short")
+  const [emoji, setEmoji] = useState("Light")
+  const [salesStyle, setSalesStyle] = useState("Balanced")
+  const [customInstructions, setCustomInstructions] =
+    useState(initialPersonality)
+
+  const [loading, setLoading] = useState(false)
+
+  const generatedPersonality = `
+Tone: ${tone}
+Response Length: ${length}
+Emoji Usage: ${emoji}
+Sales Style: ${salesStyle}
+
+Custom Instructions:
+${customInstructions}
+`
+
+  function loadPreset(name: keyof typeof presets) {
+    const preset = presets[name]
+
+    setTone(preset.tone)
+    setLength(preset.length)
+    setEmoji(preset.emoji)
+    setSalesStyle(preset.salesStyle)
+    setCustomInstructions(preset.instructions)
+  }
+
+  async function savePersonality() {
+    setLoading(true)
+
+    const result = await saveBusinessPersonality({
+      personality: generatedPersonality,
+    })
+
+    setLoading(false)
+
+    if (!result.ok) {
+      alert(result.error)
+      return
+    }
+
+    router.refresh()
+    alert("AI personality updated!")
+  }
 
   return (
-    <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-6">
+    <div
+      data-business-id={businessId}
+      className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-6"
+    >
       <h2 className="text-xl font-bold text-white">
         Personality Builder
       </h2>
 
-<div className="mt-6">
-  <h3 className="mb-3 text-lg font-semibold text-white">
-    Quick Presets
-  </h3>
+      <div className="mt-6">
+        <h3 className="mb-3 text-lg font-semibold text-white">
+          Quick Presets
+        </h3>
 
-  <div className="flex flex-wrap gap-3">
-    <button
-      type="button"
-      onClick={() => loadPreset("Friendly")}
-      className="rounded-xl bg-slate-800 px-4 py-2 text-white hover:bg-slate-700"
-    >
-      😊 Friendly
-    </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => loadPreset("Friendly")}
+            className="rounded-xl bg-slate-800 px-4 py-2 text-white hover:bg-slate-700"
+          >
+            😊 Friendly
+          </button>
 
-    <button
-      type="button"
-      onClick={() => loadPreset("Professional")}
-      className="rounded-xl bg-slate-800 px-4 py-2 text-white hover:bg-slate-700"
-    >
-      💼 Professional
-    </button>
+          <button
+            type="button"
+            onClick={() => loadPreset("Professional")}
+            className="rounded-xl bg-slate-800 px-4 py-2 text-white hover:bg-slate-700"
+          >
+            💼 Professional
+          </button>
 
-    <button
-      type="button"
-      onClick={() => loadPreset("Sales")}
-      className="rounded-xl bg-slate-800 px-4 py-2 text-white hover:bg-slate-700"
-    >
-      💰 Sales
-    </button>
+          <button
+            type="button"
+            onClick={() => loadPreset("Sales")}
+            className="rounded-xl bg-slate-800 px-4 py-2 text-white hover:bg-slate-700"
+          >
+            💰 Sales
+          </button>
 
-    <button
-      type="button"
-      onClick={() => loadPreset("Luxury")}
-      className="rounded-xl bg-slate-800 px-4 py-2 text-white hover:bg-slate-700"
-    >
-      👑 Luxury
-    </button>
-  </div>
-</div>
+          <button
+            type="button"
+            onClick={() => loadPreset("Luxury")}
+            className="rounded-xl bg-slate-800 px-4 py-2 text-white hover:bg-slate-700"
+          >
+            👑 Luxury
+          </button>
+        </div>
+      </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <SelectBox
           label="Tone"
           value={tone}
           onChange={setTone}
-          options={["Friendly", "Professional", "Casual", "Luxury", "Playful"]}
+          options={[
+            "Friendly",
+            "Professional",
+            "Casual",
+            "Luxury",
+            "Playful",
+          ]}
         />
 
         <SelectBox
@@ -186,7 +192,9 @@ function loadPreset(name: keyof typeof presets) {
 
         <textarea
           value={customInstructions}
-          onChange={(e) => setCustomInstructions(e.target.value)}
+          onChange={(e) =>
+            setCustomInstructions(e.target.value)
+          }
           className="min-h-40 w-full rounded-xl bg-slate-800 p-4 text-white outline-none"
         />
       </div>
@@ -202,6 +210,7 @@ function loadPreset(name: keyof typeof presets) {
       </div>
 
       <button
+        type="button"
         onClick={savePersonality}
         disabled={loading}
         className="mt-6 rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { saveBusinessPersonality } from "./actions"
 
 export default function PersonalityForm({
   initialPersonality,
@@ -11,43 +11,26 @@ export default function PersonalityForm({
 }) {
   const router = useRouter()
 
-  const [personality, setPersonality] = useState(
-    initialPersonality
-  )
+  const [personality, setPersonality] =
+    useState(initialPersonality)
 
   const [loading, setLoading] = useState(false)
 
   async function savePersonality() {
     setLoading(true)
 
-    const { data: business } = await supabase
-      .from("businesses")
-      .select("id")
-      .limit(1)
-      .maybeSingle()
-
-    if (!business) {
-      alert("No business found")
-      setLoading(false)
-      return
-    }
-
-    const { error } = await supabase
-      .from("businesses")
-      .update({
-        personality,
-      })
-      .eq("id", business.id)
+    const result = await saveBusinessPersonality({
+      personality,
+    })
 
     setLoading(false)
 
-    if (error) {
-      alert(error.message)
+    if (!result.ok) {
+      alert(result.error)
       return
     }
 
     router.refresh()
-
     alert("Personality updated!")
   }
 
@@ -59,16 +42,15 @@ export default function PersonalityForm({
 
       <textarea
         value={personality}
-        onChange={(e) =>
-          setPersonality(e.target.value)
-        }
+        onChange={(e) => setPersonality(e.target.value)}
         className="min-h-48 w-full rounded-xl bg-slate-800 p-4 text-white outline-none"
       />
 
       <button
+        type="button"
         onClick={savePersonality}
         disabled={loading}
-        className="mt-6 rounded-xl bg-white px-6 py-3 font-semibold text-black"
+        className="mt-6 rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
       >
         {loading ? "Saving..." : "Save Personality"}
       </button>

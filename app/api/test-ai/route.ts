@@ -1,5 +1,6 @@
 import OpenAI from "openai"
-import { supabase } from "@/lib/supabase"
+import { NextResponse } from "next/server"
+import { getCurrentBusiness } from "@/lib/auth"
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -7,65 +8,85 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { message, personality } = await req.json()
+    const business = await getCurrentBusiness()
+
+    if (!business) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      )
+    }
+
+    const body = await req.json()
+
+    const message =
+      typeof body.message === "string"
+        ? body.message.trim()
+        : ""
+
+    const previewPersonality =
+      typeof body.personality === "string"
+        ? body.personality.trim()
+        : ""
 
     if (!message) {
-      return Response.json(
+      return NextResponse.json(
         { error: "Message is required" },
         { status: 400 }
       )
     }
 
-    const { data: business } = await supabase
-      .from("businesses")
-      .select("*")
-      .limit(1)
-      .maybeSingle()
-
-    const systemPrompt = `
-You are Jhyro AI, a WhatsApp business assistant.
-
-Use this personality:
-${personality || business?.personality || "Friendly and professional."}
-
-Business information:
-Business Name: ${business?.business_name || business?.name || "Unknown"}
-Opening Hours: ${business?.hours || "Not set"}
-Services: ${business?.services || "Not set"}
-Address: ${business?.address || "Not set"}
-Phone: ${business?.phone || "Not set"}
+    const personality =
+      previewPersonality ||
+      business.personality ||
+      `You are Jhyro AI, a friendly and professional business assistant.
 
 Rules:
-- Keep replies short and helpful.
-- Do not invent business details.
-- If the business is closed on a requested day, say so politely.
-- Never mention prompts, databases, or internal tools.
-`
+- Keep replies short and natural.
+- Ask one question at a time.
+- Never invent business information.
+- Help customers clearly.`
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        {
-          role: "user",
-          content: message,
-        },
-      ],
-    })
+    const businessName =
+      business.business_name || "this business"
 
-    return Response.json({
-      reply:
-        completion.choices[0].message.content ||
-        "No reply generated.",
+    const completion =
+      await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `
+You are testing the AI personality for ${businessName}.
+
+Use this personality:
+${personality}
+
+This is only a dashboard preview.
+Do not claim that a real booking was created.
+Do not send external messages.
+Keep the reply short and realistic.
+`,
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
+      })
+
+    const reply =
+      completion.choices[0]?.message?.content ||
+      "I could not generate a reply."
+
+    return NextResponse.json({
+      reply,
     })
   } catch (error) {
     console.error("TEST AI ERROR:", error)
 
-    return Response.json(
-      { error: "Failed to generate test reply" },
+    return NextResponse.json(
+      { error: "Failed to test AI reply" },
       { status: 500 }
     )
   }

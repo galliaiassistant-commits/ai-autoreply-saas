@@ -1,28 +1,31 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 
-type Props = {
-  id: string
-}
-
 export default function DeleteKnowledgeButton({
   id,
-}: Props) {
+  businessId,
+}: {
+  id: string
+  businessId: string
+}) {
   const router = useRouter()
+  const [deleting, setDeleting] = useState(false)
 
   async function deleteKnowledge() {
-    const confirmed = confirm(
-      "Are you sure you want to delete this knowledge?"
-    )
+    if (!confirm("Delete this AI knowledge item?")) return
 
-    if (!confirmed) return
+    setDeleting(true)
 
     const { error } = await supabase
       .from("business_knowledge")
       .delete()
       .eq("id", id)
+      .eq("business_id", businessId)
+
+    setDeleting(false)
 
     if (error) {
       alert(error.message)
@@ -34,10 +37,12 @@ export default function DeleteKnowledgeButton({
 
   return (
     <button
+      type="button"
       onClick={deleteKnowledge}
-      className="text-red-400 hover:text-red-300"
+      disabled={deleting}
+      className="rounded-lg bg-red-500/10 px-3 py-1 text-sm text-red-400 hover:bg-red-500/20 disabled:opacity-50"
     >
-      Delete
+      {deleting ? "Deleting..." : "Delete"}
     </button>
   )
 }
