@@ -1,12 +1,15 @@
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 
 export async function getCurrentBusiness() {
+  const supabase = await createClient()
+
   const {
     data: { user },
     error: userError,
   } = await supabase.auth.getUser()
 
   if (userError || !user) {
+    console.error("GET USER ERROR:", userError)
     return null
   }
 
