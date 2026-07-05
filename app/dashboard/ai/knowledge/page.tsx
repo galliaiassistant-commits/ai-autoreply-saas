@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import DeleteKnowledgeButton from "./DeleteKnowledgeButton"
@@ -18,6 +18,7 @@ export default async function AIKnowledgePage({
   searchParams?: Promise<{ q?: string }>
 }) {
   const business = await getCurrentBusiness()
+  const supabase = await createClient()
 
   if (!business) {
     return (
@@ -74,7 +75,7 @@ export default async function AIKnowledgePage({
         </p>
 
         <p className="mt-1 text-sm text-slate-500">
-          Showing knowledge only for:{" "}
+          Showing knowledge only for{" "}
           <span className="font-semibold text-white">
             {business.business_name || "Current Business"}
           </span>

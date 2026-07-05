@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import { ArrowLeft, Brain, Save } from "lucide-react"
@@ -31,6 +31,8 @@ export default async function NewKnowledgePage({
       redirect("/auth/sign-in")
     }
 
+    const supabase = await createClient()
+
     const question = String(formData.get("question") || "").trim()
     const answer = String(formData.get("answer") || "").trim()
 
@@ -47,7 +49,7 @@ export default async function NewKnowledgePage({
       })
 
     if (error) {
-      console.error("CREATE KNOWLEDGE ERROR:", error)
+      console.error("CREATE KNOWLEDGE ERROR:", error.message)
       redirect("/dashboard/ai/knowledge/new?error=save")
     }
 
