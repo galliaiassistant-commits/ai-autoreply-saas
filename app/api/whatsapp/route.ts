@@ -1,5 +1,5 @@
 import OpenAI from "openai"
-import { supabase } from "@/lib/supabase"
+import { supabaseAdmin as supabase } from "@/lib/supabase/admin"
 import { sendWhatsAppMessage } from "@/lib/whatsapp"
 import {
   getOpenBooking,
