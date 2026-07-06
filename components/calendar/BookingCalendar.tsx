@@ -1,13 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
-import { Booking, CalendarView, Slot, BusinessService } from "./types"
+import {
+  Booking,
+  CalendarView,
+  Slot,
+  BusinessService,
+} from "./types"
 import CalendarToolbar from "./CalendarToolbar"
 import BookingGrid from "./BookingGrid"
 import BookingSidePanel from "./BookingSidePanel"
 import SlotPicker from "./SlotPicker"
+import { createManualBooking } from "@/app/dashboard/bookings/actions"
 
 type Props = {
   bookings: Booking[]
@@ -31,6 +36,21 @@ export default function BookingCalendar({
 
   const [selectedService, setSelectedService] = useState("")
   const [saving, setSaving] = useState(false)
+
+  const activeServices = useMemo(() => {
+    return services.filter(
+      (service) =>
+        service.business_id === businessId &&
+        service.is_active !== false &&
+        Boolean(service.name)
+    )
+  }, [services, businessId])
+
+  useEffect(() => {
+    if (!selectedService && activeServices.length > 0) {
+      setSelectedService(activeServices[0].name)
+    }
+  }, [activeServices, selectedService])
 
   const scheduled = bookings
     .filter(
@@ -57,84 +77,27 @@ export default function BookingCalendar({
   async function createBooking() {
     if (!selectedSlot) return
 
-    if (!businessId) {
-      alert("Missing business ID. Refresh the page and try again.")
-      return
-    }
-
-    const validService = services.find(
-      (service) =>
-        service.name === selectedService &&
-        service.is_active !== false
-    )
-
-    if (!validService) {
-      alert("Invalid service. Please choose a service the business provides.")
+    if (!selectedService) {
+      alert("Choose a service first.")
       return
     }
 
     setSaving(true)
 
-    const { data: manualCustomer, error: customerError } =
-      await supabase
-        .from("customers")
-        .select("id")
-        .eq("business_id", businessId)
-        .eq("phone_number", "manual-booking")
-        .maybeSingle()
-
-    if (customerError) {
-      setSaving(false)
-      alert(customerError.message)
-      return
-    }
-
-    if (!manualCustomer) {
-      setSaving(false)
-      alert("Manual booking customer not found for this business.")
-      return
-    }
-
-    const { data: conflict, error: conflictError } =
-      await supabase
-        .from("bookings")
-        .select("id")
-        .eq("business_id", businessId)
-        .eq("booking_time", selectedSlot.iso)
-        .eq("status", "booked")
-        .maybeSingle()
-
-    if (conflictError) {
-      setSaving(false)
-      alert(conflictError.message)
-      return
-    }
-
-    if (conflict) {
-      setSaving(false)
-      alert("That time is already booked.")
-      return
-    }
-
-    const { error } = await supabase
-      .from("bookings")
-      .insert({
-        business_id: businessId,
-        customer_id: manualCustomer.id,
-        service: validService.name,
-        booking_time: selectedSlot.iso,
-        status: "booked",
-      })
+    const result = await createManualBooking({
+      serviceName: selectedService,
+      bookingTime: selectedSlot.iso,
+    })
 
     setSaving(false)
 
-    if (error) {
-      alert(error.message)
+    if (!result.ok) {
+      alert(result.error)
       return
     }
 
     setSelectedSlot(null)
-    setSelectedService("")
+    setSelectedService(activeServices[0]?.name || "")
     router.refresh()
   }
 
@@ -152,10 +115,7 @@ export default function BookingCalendar({
             </p>
           </div>
 
-          <CalendarToolbar
-            view={view}
-            setView={setView}
-          />
+          <CalendarToolbar view={view} setView={setView} />
         </div>
 
         <div className="mt-6">
@@ -178,22 +138,22 @@ export default function BookingCalendar({
 
       <SlotPicker
         selectedSlot={selectedSlot}
-        services={services}
+        services={activeServices}
         selectedService={selectedService}
         setSelectedService={setSelectedService}
         onSave={createBooking}
         onCancel={() => {
           setSelectedSlot(null)
-          setSelectedService("")
+          setSelectedService(activeServices[0]?.name || "")
         }}
         saving={saving}
       />
 
       <BookingSidePanel
-  booking={selectedBooking}
-  businessId={businessId}
-  onClose={() => setSelectedBooking(null)}
-/>
+        booking={selectedBooking}
+        businessId={businessId}
+        onClose={() => setSelectedBooking(null)}
+      />
     </div>
   )
 }

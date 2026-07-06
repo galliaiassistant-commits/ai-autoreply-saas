@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import { StatusBadge } from "@/components/dashboard/StatusBadge"
@@ -28,26 +28,50 @@ export default async function BookingsPage() {
     )
   }
 
-  const { data: bookings } = await supabase
-    .from("bookings")
-    .select("*")
-    .eq("business_id", business.id)
-    .order("created_at", { ascending: false })
+  const supabase = await createClient()
 
-  const { data: services } = await supabase
-    .from("business_services")
-    .select("id, name, price, duration_minutes, is_active")
-    .eq("business_id", business.id)
-    .eq("is_active", true)
-    .order("name", { ascending: true })
+  const [
+    { data: bookings, error: bookingsError },
+    { data: services, error: servicesError },
+  ] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select("*")
+      .eq("business_id", business.id)
+      .order("created_at", { ascending: false }),
 
-  const totalBookings = bookings?.length || 0
+    supabase
+      .from("business_services")
+      .select("*")
+      .eq("business_id", business.id)
+      .order("name", { ascending: true }),
+  ])
+
+  if (bookingsError) {
+    console.error("BOOKINGS PAGE BOOKINGS ERROR:", bookingsError)
+  }
+
+  if (servicesError) {
+    console.error("BOOKINGS PAGE SERVICES ERROR:", servicesError)
+  }
+
+  const safeBookings = bookings || []
+  const safeServices = services || []
+
+  const totalBookings = safeBookings.length
+
   const bookedBookings =
-    bookings?.filter((b) => b.status === "booked").length || 0
+    safeBookings.filter((booking) => booking.status === "booked")
+      .length
+
   const completedBookings =
-    bookings?.filter((b) => b.status === "completed").length || 0
+    safeBookings.filter((booking) => booking.status === "completed")
+      .length
+
   const missingDetails =
-    bookings?.filter((b) => b.status === "missing_details").length || 0
+    safeBookings.filter(
+      (booking) => booking.status === "missing_details"
+    ).length
 
   return (
     <div>
@@ -88,8 +112,8 @@ export default async function BookingsPage() {
         </h2>
 
         <div className="mt-6 space-y-4">
-          {bookings && bookings.length > 0 ? (
-            bookings.map((booking) => (
+          {safeBookings.length > 0 ? (
+            safeBookings.map((booking) => (
               <div
                 key={booking.id}
                 className="rounded-2xl bg-slate-800 p-5"
@@ -102,26 +126,32 @@ export default async function BookingsPage() {
 
                     <p className="mt-1 text-sm text-slate-400">
                       {booking.booking_time
-                        ? new Date(booking.booking_time).toLocaleString()
+                        ? new Date(
+                            booking.booking_time
+                          ).toLocaleString()
                         : "Missing date and time"}
                     </p>
 
                     <p className="mt-1 text-xs text-slate-500">
                       Created{" "}
                       {booking.created_at
-                        ? new Date(booking.created_at).toLocaleDateString()
+                        ? new Date(
+                            booking.created_at
+                          ).toLocaleDateString()
                         : "Unknown"}
                     </p>
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <StatusBadge status={booking.status || "missing_details"} />
+                    <StatusBadge
+                      status={booking.status || "missing_details"}
+                    />
 
                     <BookingActions
-  bookingId={booking.id}
-  businessId={business.id}
-  status={booking.status}
-/>
+                      bookingId={booking.id}
+                      businessId={business.id}
+                      status={booking.status}
+                    />
                   </div>
                 </div>
               </div>
@@ -135,8 +165,8 @@ export default async function BookingsPage() {
       </div>
 
       <BookingCalendar
-        bookings={bookings || []}
-        services={services || []}
+        bookings={safeBookings}
+        services={safeServices}
         businessId={business.id}
       />
     </div>
@@ -155,8 +185,13 @@ function BookingStat({
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-400">{title}</p>
-        <div className="text-slate-400">{icon}</div>
+        <p className="text-sm text-slate-400">
+          {title}
+        </p>
+
+        <div className="text-slate-400">
+          {icon}
+        </div>
       </div>
 
       <p className="mt-4 text-3xl font-bold text-white">
