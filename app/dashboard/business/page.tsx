@@ -1,6 +1,6 @@
 import Link from "next/link"
 import type { ReactNode } from "react"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import {
@@ -40,12 +40,14 @@ export default async function BusinessPage() {
     )
   }
 
+  const supabase = await createClient()
+
   const [
-    { data: services },
-    { data: availability },
-    { data: breaks },
-    { data: closures },
-    { data: integrations },
+    { data: services, error: servicesError },
+    { data: availability, error: availabilityError },
+    { data: breaks, error: breaksError },
+    { data: closures, error: closuresError },
+    { data: integrations, error: integrationsError },
   ] = await Promise.all([
     supabase
       .from("business_services")
@@ -75,6 +77,26 @@ export default async function BusinessPage() {
       .select("*")
       .eq("business_id", business.id),
   ])
+
+  if (servicesError) {
+    console.error("BUSINESS SERVICES ERROR:", servicesError)
+  }
+
+  if (availabilityError) {
+    console.error("BUSINESS AVAILABILITY ERROR:", availabilityError)
+  }
+
+  if (breaksError) {
+    console.error("BUSINESS BREAKS ERROR:", breaksError)
+  }
+
+  if (closuresError) {
+    console.error("BUSINESS CLOSURES ERROR:", closuresError)
+  }
+
+  if (integrationsError) {
+    console.error("BUSINESS INTEGRATIONS ERROR:", integrationsError)
+  }
 
   const safeServices = services || []
   const safeAvailability = availability || []
@@ -125,7 +147,7 @@ export default async function BusinessPage() {
             <p className="mt-6 max-w-3xl text-slate-400">
               This is the business record connected to your signed-in account.
               All services, hours, bookings, customers, messages, and integrations
-              should be filtered through this business ID.
+              are filtered through this business ID.
             </p>
           </div>
 
