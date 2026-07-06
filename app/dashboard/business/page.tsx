@@ -340,7 +340,7 @@ export default async function BusinessPage() {
           </div>
 
           <Link
-            href="/onboarding"
+            href="/dashboard/business/services"
             className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
           >
             Edit Services
