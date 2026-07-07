@@ -134,10 +134,54 @@ export async function POST(req: Request) {
       )
     }
 
-    const business = resolvedBusiness.business
-    const integration = resolvedBusiness.integration
+    const businessServicesText =
+  await getBusinessServicesText(resolvedBusiness.business.id)
+
+const business = {
+  ...resolvedBusiness.business,
+  services:
+    businessServicesText ||
+    resolvedBusiness.business.services ||
+    null,
+}
+
+const integration = resolvedBusiness.integration
 
     console.log("BUSINESS ID:", business.id)
+
+async function getBusinessServicesText(businessId: string) {
+  const { data, error } = await supabase
+    .from("business_services")
+    .select("name, price, duration_minutes, is_active")
+    .eq("business_id", businessId)
+    .neq("is_active", false)
+    .order("name", { ascending: true })
+
+  if (error) {
+    console.error("GET BUSINESS SERVICES TEXT ERROR:", error)
+    return ""
+  }
+
+  if (!data || data.length === 0) {
+    return ""
+  }
+
+  return data
+    .map((service) => {
+      const price =
+        service.price !== null && service.price !== undefined
+          ? ` - $${service.price}`
+          : ""
+
+      const duration =
+        service.duration_minutes
+          ? ` (${service.duration_minutes} minutes)`
+          : ""
+
+      return `${service.name}${price}${duration}`
+    })
+    .join(", ")
+}
 
     const customer = await findOrCreateCustomer({
       businessId: business.id,

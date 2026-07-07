@@ -1,14 +1,22 @@
-import { supabase } from "@/lib/supabase"
+import { supabaseAdmin as supabase } from "@/lib/supabase/admin"
 import { SchedulerService } from "./types"
+
+function normalize(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
 
 export async function getBusinessServices(
   businessId: string
 ): Promise<SchedulerService[]> {
   const { data, error } = await supabase
     .from("business_services")
-    .select("id, business_id, name, price, duration_minutes, is_active")
+    .select("*")
     .eq("business_id", businessId)
-    .eq("is_active", true)
+    .neq("is_active", false)
     .order("name", { ascending: true })
 
   if (error) {
@@ -23,12 +31,12 @@ export async function findServiceByName(
   businessId: string,
   serviceName: string
 ): Promise<SchedulerService | null> {
-  const cleanName = serviceName.trim().toLowerCase()
-
   const services = await getBusinessServices(businessId)
 
+  const wanted = normalize(serviceName)
+
   const exactMatch = services.find(
-    (service) => service.name.trim().toLowerCase() === cleanName
+    (service) => normalize(service.name) === wanted
   )
 
   if (exactMatch) {
@@ -36,13 +44,23 @@ export async function findServiceByName(
   }
 
   const partialMatch = services.find((service) => {
-    const serviceLower = service.name.trim().toLowerCase()
+    const serviceNameClean = normalize(service.name)
 
     return (
-      serviceLower.includes(cleanName) ||
-      cleanName.includes(serviceLower)
+      serviceNameClean.includes(wanted) ||
+      wanted.includes(serviceNameClean)
     )
   })
 
-  return partialMatch || null
+  if (partialMatch) {
+    return partialMatch
+  }
+
+  console.log("SERVICE NOT FOUND:", serviceName)
+  console.log(
+    "AVAILABLE SERVICES:",
+    services.map((service) => service.name)
+  )
+
+  return null
 }
