@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase"
+import { supabaseAdmin as supabase } from "@/lib/supabase/admin"
 import { checkAvailability } from "./availability"
 import { findNextAvailableSlots } from "./slotGenerator"
 import { findServiceByName } from "./services"
