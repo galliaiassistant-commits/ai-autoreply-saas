@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import IntegrationStatus from "./IntegrationStatus"
 import {
@@ -17,11 +17,32 @@ export default function IntegrationCard({
   record?: IntegrationRecord
   businessId: string
 }) {
+  const isWhatsApp = definition.provider === "whatsapp"
+
+  const realConnected = useMemo(() => {
+    if (isWhatsApp) {
+      return (
+        record?.connected === true &&
+        Boolean(record?.phone_number_id) &&
+        Boolean(record?.business_account_id)
+      )
+    }
+
+    return record?.connected === true
+  }, [record, isWhatsApp])
+
   const [loading, setLoading] = useState(false)
-  const [connected, setConnected] = useState(record?.connected || false)
+  const [connected, setConnected] = useState(realConnected)
 
   async function toggleConnection() {
     if (definition.comingSoon) return
+
+    if (isWhatsApp && !connected) {
+      alert(
+        "WhatsApp needs setup first. Add the Phone Number ID and WABA ID before marking it connected."
+      )
+      return
+    }
 
     setLoading(true)
 
@@ -56,6 +77,12 @@ export default function IntegrationCard({
     ? new Date(record.updated_at).toLocaleString()
     : "Never"
 
+  const healthText = connected
+    ? "Healthy"
+    : isWhatsApp
+    ? "Setup required"
+    : "Inactive"
+
   return (
     <div className="group rounded-3xl border border-slate-800 bg-slate-900 p-6 transition hover:border-slate-700 hover:bg-slate-900/80">
       <div className="flex items-start justify-between gap-4">
@@ -85,29 +112,58 @@ export default function IntegrationCard({
         {definition.description}
       </p>
 
+      {isWhatsApp && !connected && (
+        <div className="mt-5 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-200">
+          WhatsApp is not fully connected. Add your Phone Number ID and
+          WhatsApp Business Account ID before enabling it.
+        </div>
+      )}
+
       <div className="mt-5 rounded-2xl bg-slate-950 p-4">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500">Health</span>
+          <span className="text-slate-500">
+            Health
+          </span>
+
           <span
             className={
               connected
                 ? "font-semibold text-green-400"
+                : isWhatsApp
+                ? "font-semibold text-yellow-400"
                 : "font-semibold text-slate-500"
             }
           >
-            {connected ? "Healthy" : "Inactive"}
+            {healthText}
           </span>
         </div>
 
         <div className="mt-3 flex items-center justify-between text-sm">
-          <span className="text-slate-500">Last Updated</span>
-          <span className="text-slate-300">{lastUpdated}</span>
+          <span className="text-slate-500">
+            Last Updated
+          </span>
+
+          <span className="text-slate-300">
+            {lastUpdated}
+          </span>
         </div>
       </div>
 
       {record?.phone_number && (
         <div className="mt-4 rounded-xl bg-slate-800 p-3 text-sm text-slate-300">
           Number: {record.phone_number}
+        </div>
+      )}
+
+      {isWhatsApp && record?.phone_number_id && (
+        <div className="mt-4 rounded-xl bg-slate-800 p-3 text-sm text-slate-300">
+          Phone Number ID: {record.phone_number_id}
+        </div>
+      )}
+
+      {isWhatsApp && record?.business_account_id && (
+        <div className="mt-3 rounded-xl bg-slate-800 p-3 text-sm text-slate-300">
+          WABA ID: {record.business_account_id}
         </div>
       )}
 
@@ -128,12 +184,14 @@ export default function IntegrationCard({
             ? "Saving..."
             : connected
             ? "Disconnect"
+            : isWhatsApp
+            ? "Setup Required"
             : "Connect"}
         </button>
 
         <button
           type="button"
-          disabled={!connected}
+          disabled={!connected && !isWhatsApp}
           className="rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-300 hover:bg-slate-800 disabled:opacity-40"
         >
           Manage
