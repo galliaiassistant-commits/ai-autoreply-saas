@@ -7,23 +7,86 @@ import {
   BusinessClosure,
 } from "./types"
 
+const dayNames = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+]
+
 function getDayName(date: Date) {
   return date.toLocaleDateString("en-US", {
     weekday: "long",
+    timeZone: "America/Jamaica",
   })
 }
 
+function getDayIndex(date: Date) {
+  const dayName = getDayName(date)
+  return dayNames.indexOf(dayName)
+}
+
 function getDateOnly(date: Date) {
-  return date.toISOString().split("T")[0]
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Jamaica",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date)
 }
 
 function getTimeOnly(date: Date) {
-  return date.toTimeString().slice(0, 5)
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Jamaica",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date)
 }
 
 function normalizeTime(time: string | null) {
   if (!time) return null
   return time.slice(0, 5)
+}
+
+function normalizeDay(value: unknown) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+}
+
+function dayMatches({
+  storedDay,
+  dayName,
+  dayIndex,
+}: {
+  storedDay: unknown
+  dayName: string
+  dayIndex: number
+}) {
+  const stored = normalizeDay(storedDay)
+
+  if (!stored) return false
+
+  if (stored === normalizeDay(dayName)) {
+    return true
+  }
+
+  if (stored === String(dayIndex)) {
+    return true
+  }
+
+  // Some systems store Monday as 1 and Sunday as 7
+  const mondayBasedIndex = dayIndex === 0 ? 7 : dayIndex
+
+  if (stored === String(mondayBasedIndex)) {
+    return true
+  }
+
+  return false
 }
 
 function isTimeBetween({
@@ -46,20 +109,36 @@ export async function getAvailabilityRule({
   date: Date
 }) {
   const dayName = getDayName(date)
+  const dayIndex = getDayIndex(date)
 
   const { data, error } = await supabase
     .from("business_availability")
     .select("*")
     .eq("business_id", businessId)
-    .eq("day_of_week", dayName)
-    .maybeSingle<AvailabilityRule>()
+    .returns<AvailabilityRule[]>()
 
   if (error) {
     console.error("GET AVAILABILITY RULE ERROR:", error)
     return null
   }
 
-  return data
+  console.log("AVAILABILITY BUSINESS ID:", businessId)
+  console.log("AVAILABILITY DAY NAME:", dayName)
+  console.log("AVAILABILITY DAY INDEX:", dayIndex)
+  console.log("AVAILABILITY ROWS:", data)
+
+  const rule =
+    data?.find((item) =>
+      dayMatches({
+        storedDay: item.day_of_week,
+        dayName,
+        dayIndex,
+      })
+    ) || null
+
+  console.log("MATCHED AVAILABILITY RULE:", rule)
+
+  return rule
 }
 
 export async function checkAvailability({
@@ -81,6 +160,12 @@ export async function checkAvailability({
   const dateOnly = getDateOnly(date)
   const timeOnly = getTimeOnly(date)
   const dayName = getDayName(date)
+  const dayIndex = getDayIndex(date)
+
+  console.log("CHECK AVAILABILITY TIME:", bookingTime)
+  console.log("CHECK AVAILABILITY DATE:", dateOnly)
+  console.log("CHECK AVAILABILITY DAY:", dayName)
+  console.log("CHECK AVAILABILITY CLOCK:", timeOnly)
 
   const { data: closure, error: closureError } = await supabase
     .from("business_closures")
@@ -91,6 +176,7 @@ export async function checkAvailability({
 
   if (closureError) {
     console.error("CLOSURE CHECK ERROR:", closureError)
+
     return {
       available: false,
       reason: "I could not check the business closure calendar.",
@@ -135,7 +221,13 @@ export async function checkAvailability({
     }
   }
 
-  if (!isTimeBetween({ time: timeOnly, start: openTime, end: closeTime })) {
+  if (
+    !isTimeBetween({
+      time: timeOnly,
+      start: openTime,
+      end: closeTime,
+    })
+  ) {
     return {
       available: false,
       reason: `That time is outside business hours. Hours are ${openTime} - ${closeTime}.`,
@@ -146,11 +238,11 @@ export async function checkAvailability({
     .from("business_breaks")
     .select("*")
     .eq("business_id", businessId)
-    .eq("day_of_week", dayName)
     .returns<BusinessBreak[]>()
 
   if (breakError) {
     console.error("BREAK CHECK ERROR:", breakError)
+
     return {
       available: false,
       reason: "I could not check business breaks.",
@@ -162,6 +254,14 @@ export async function checkAvailability({
     const end = normalizeTime(item.end_time)
 
     if (!start || !end) return false
+
+    const sameDay = dayMatches({
+      storedDay: item.day_of_week,
+      dayName,
+      dayIndex,
+    })
+
+    if (!sameDay) return false
 
     return isTimeBetween({
       time: timeOnly,
