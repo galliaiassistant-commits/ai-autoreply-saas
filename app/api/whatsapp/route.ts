@@ -726,7 +726,10 @@ Phone: ${business?.phone || "Not set"}
 Address: ${business?.address || "Not set"}
 Opening Hours: ${business?.hours || "Not set"}
 Services: ${business?.services || "Not set"}
-Booking Policy: ${business?.booking_policy || "Not set"}
+Booking Policy: ${
+  business?.booking_policy ||
+  "Customers can request appointments by sending the service, date, and time. Confirm bookings only when the service exists and the time is available. If details are missing, ask one follow-up question."
+}
 AI Personality: ${
         business?.personality ||
         business?.ai_personality ||
