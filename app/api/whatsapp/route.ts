@@ -62,14 +62,15 @@ export async function GET(req: Request) {
   const challenge = searchParams.get("hub.challenge")
 
   if (!mode || !token || !challenge) {
-    return new Response("Missing verification params", { status: 400 })
+    return new Response("Missing verification params", {
+      status: 400,
+    })
   }
 
-  const isMetaVerification =
-    mode === "subscribe"
-
-  if (!isMetaVerification) {
-    return new Response("Verification failed", { status: 403 })
+  if (mode !== "subscribe") {
+    return new Response("Verification failed", {
+      status: 403,
+    })
   }
 
   const tokenMatchesEnv =
@@ -83,10 +84,14 @@ export async function GET(req: Request) {
     .maybeSingle()
 
   if (tokenMatchesEnv || integration) {
-    return new Response(challenge, { status: 200 })
+    return new Response(challenge, {
+      status: 200,
+    })
   }
 
-  return new Response("Verification failed", { status: 403 })
+  return new Response("Verification failed", {
+    status: 403,
+  })
 }
 
 export async function POST(req: Request) {
@@ -99,32 +104,40 @@ export async function POST(req: Request) {
     const message = value?.messages?.[0]
 
     if (!message) {
-      return Response.json({ ok: true })
+      return Response.json({
+        ok: true,
+      })
     }
 
     const from = message.from
     const userText = message?.text?.body?.trim() || ""
-    const phoneNumberId = value?.metadata?.phone_number_id || null
+    const phoneNumberId =
+      value?.metadata?.phone_number_id || null
 
     console.log("FROM:", from)
     console.log("TEXT:", userText)
     console.log("PHONE NUMBER ID:", phoneNumberId)
 
     const resolvedBusiness =
-  await resolveBusinessFromWebhook(phoneNumberId)
+      await resolveBusinessFromWebhook(phoneNumberId)
 
-if (!resolvedBusiness.business) {
-  console.error("NO BUSINESS FOUND FOR WHATSAPP WEBHOOK")
-  return Response.json(
-    { error: "No business found for webhook" },
-    { status: 200 }
-  )
-}
+    if (!resolvedBusiness.business) {
+      console.error("NO BUSINESS FOUND FOR WHATSAPP WEBHOOK")
 
-const business = resolvedBusiness.business
-const integration = resolvedBusiness.integration
+      return Response.json(
+        {
+          error: "No business found for webhook",
+        },
+        {
+          status: 200,
+        }
+      )
+    }
 
-console.log("BUSINESS ID:", business.id)
+    const business = resolvedBusiness.business
+    const integration = resolvedBusiness.integration
+
+    console.log("BUSINESS ID:", business.id)
 
     const customer = await findOrCreateCustomer({
       businessId: business.id,
@@ -155,7 +168,9 @@ console.log("BUSINESS ID:", business.id)
 
       console.log("AI MESSAGE INSERT ERROR:", aiMsgError)
 
-      return Response.json({ success: true })
+      return Response.json({
+        success: true,
+      })
     }
 
     if (!userText) {
@@ -194,14 +209,16 @@ console.log("BUSINESS ID:", business.id)
       .select("role, message")
       .eq("business_id", business.id)
       .eq("customer_id", customer.id)
-      .order("created_at", { ascending: false })
+      .order("created_at", {
+        ascending: false,
+      })
       .limit(8)
 
     const memoryText =
       await getCustomerMemoryText(customer.id)
 
     const openBooking =
-  await getOpenBooking(business.id, customer.id)
+      await getOpenBooking(business.id, customer.id)
 
     const action = detectUserAction(userText)
 
@@ -230,7 +247,9 @@ console.log("BUSINESS ID:", business.id)
 
       console.log("CANCEL BOOKING ERROR:", cancelError)
 
-      return finish("No problem, I've cancelled that booking request.")
+      return finish(
+        "No problem, I've cancelled that booking request."
+      )
     }
 
     const friendlyClosingReplies = [
@@ -244,7 +263,10 @@ console.log("BUSINESS ID:", business.id)
       return finish("Thank you! Take care 😊")
     }
 
-    const quickReply = getQuickReply(action, customer?.name)
+    const quickReply = getQuickReply(
+      action,
+      customer?.name
+    )
 
     if (quickReply) {
       return finish(quickReply)
@@ -268,7 +290,10 @@ console.log("BUSINESS ID:", business.id)
       )
 
       console.log("BOOKING EXTRACTED:", booking)
-      console.log("BOOKING JSON:", JSON.stringify(booking, null, 2))
+      console.log(
+        "BOOKING JSON:",
+        JSON.stringify(booking, null, 2)
+      )
 
       if (booking.cancel_booking && openBooking) {
         const { error: cancelError } = await supabase
@@ -282,7 +307,8 @@ console.log("BUSINESS ID:", business.id)
 
         console.log("BOOKING CANCEL ERROR:", cancelError)
 
-        reply = "No problem, I've cancelled that booking request."
+        reply =
+          "No problem, I've cancelled that booking request."
       } else if (booking.is_booking || openBooking) {
         reply = await saveBookingAndGetReply({
           businessId: business.id,
@@ -324,62 +350,89 @@ console.log("BUSINESS ID:", business.id)
     return finish(reply)
   } catch (err) {
     console.error("WEBHOOK ERROR:", err)
-    return Response.json({ error: "failed" }, { status: 200 })
+
+    return Response.json(
+      {
+        error: "failed",
+      },
+      {
+        status: 200,
+      }
+    )
   }
 }
 
-async function resolveBusinessFromWebhook(phoneNumberId: string | null) {
+async function resolveBusinessFromWebhook(
+  phoneNumberId: string | null
+) {
+  console.log("RESOLVE PHONE NUMBER ID:", phoneNumberId)
+  console.log(
+    "DEFAULT BUSINESS ID:",
+    process.env.DEFAULT_BUSINESS_ID
+  )
+
   let integration: WhatsAppIntegration | null = null
 
   if (phoneNumberId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("business_integrations")
       .select("*")
       .eq("provider", "whatsapp")
       .eq("phone_number_id", phoneNumberId)
       .maybeSingle<WhatsAppIntegration>()
 
+    console.log("INTEGRATION LOOKUP DATA:", data)
+    console.log("INTEGRATION LOOKUP ERROR:", error)
+
     integration = data || null
   }
 
-  if (!integration) {
-    console.warn(
-      "No matching business_integrations row found for phone_number_id:",
-      phoneNumberId
+  if (integration?.business_id) {
+    const { data: business, error: businessError } =
+      await supabase
+        .from("businesses")
+        .select("*")
+        .eq("id", integration.business_id)
+        .maybeSingle<WebhookBusiness>()
+
+    console.log("BUSINESS FROM INTEGRATION:", business)
+    console.log(
+      "BUSINESS FROM INTEGRATION ERROR:",
+      businessError
     )
-  }
 
-  if (!integration?.business_id) {
-    const fallbackBusinessId =
-      process.env.DEFAULT_BUSINESS_ID
-
-    if (!fallbackBusinessId) {
+    if (business) {
       return {
-        business: null,
-        integration: null,
+        business,
+        integration,
       }
     }
+  }
 
-    const { data: fallbackBusiness } = await supabase
+  const fallbackBusinessId =
+    process.env.DEFAULT_BUSINESS_ID
+
+  if (!fallbackBusinessId) {
+    console.error("NO DEFAULT_BUSINESS_ID SET")
+
+    return {
+      business: null,
+      integration: null,
+    }
+  }
+
+  const { data: fallbackBusiness, error: fallbackError } =
+    await supabase
       .from("businesses")
       .select("*")
       .eq("id", fallbackBusinessId)
       .maybeSingle<WebhookBusiness>()
 
-    return {
-      business: fallbackBusiness || null,
-      integration: null,
-    }
-  }
-
-  const { data: business } = await supabase
-    .from("businesses")
-    .select("*")
-    .eq("id", integration.business_id)
-    .maybeSingle<WebhookBusiness>()
+  console.log("FALLBACK BUSINESS:", fallbackBusiness)
+  console.log("FALLBACK BUSINESS ERROR:", fallbackError)
 
   return {
-    business: business || null,
+    business: fallbackBusiness || null,
     integration,
   }
 }
@@ -438,7 +491,9 @@ async function saveCustomerName({
   businessId: string
   userText: string
 }) {
-  const name = userText.replace(/my name is/i, "").trim()
+  const name = userText
+    .replace(/my name is/i, "")
+    .trim()
 
   if (!name) return
 
@@ -477,7 +532,11 @@ async function saveCustomerName({
 function detectUserAction(userText: string) {
   const lowerText = userText.toLowerCase()
 
-  if (lowerText === "hi" || lowerText === "hello" || lowerText === "hey") {
+  if (
+    lowerText === "hi" ||
+    lowerText === "hello" ||
+    lowerText === "hey"
+  ) {
     return "greeting"
   }
 
@@ -553,7 +612,8 @@ function buildAIMessages({
   openBooking: any
   userText: string
 }) {
-  const businessKnowledgeText = buildBusinessKnowledgeText(business)
+  const businessKnowledgeText =
+    buildBusinessKnowledgeText(business)
 
   return [
     {
@@ -650,7 +710,9 @@ Your goal is to provide excellent customer service while helping the business in
   ]
 }
 
-function buildBusinessKnowledgeText(business: WebhookBusiness) {
+function buildBusinessKnowledgeText(
+  business: WebhookBusiness
+) {
   return `
 Description: ${business.description || "Not set"}
 Knowledge: ${business.knowledge || business.business_knowledge || "Not set"}
@@ -664,12 +726,13 @@ async function saveExtractedMemories({
   customerId: string
   userText: string
 }) {
-  const memoryExtract = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content: `
+  const memoryExtract =
+    await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `
 Extract useful long-term customer memory from this message.
 
 Only save stable facts useful for a business assistant.
@@ -686,13 +749,13 @@ Example:
 
 If nothing useful, return [].
         `,
-      },
-      {
-        role: "user",
-        content: userText,
-      },
-    ],
-  })
+        },
+        {
+          role: "user",
+          content: userText,
+        },
+      ],
+    })
 
   let extractedMemories: any[] = []
 
@@ -715,7 +778,10 @@ If nothing useful, return [].
       .maybeSingle()
 
     if (existingMemory) {
-      console.log("MEMORY ALREADY EXISTS:", memory.content)
+      console.log(
+        "MEMORY ALREADY EXISTS:",
+        memory.content
+      )
       continue
     }
 
@@ -781,7 +847,8 @@ async function sendReplyToWhatsApp({
 
   if (!response.ok) {
     throw new Error(
-      data?.error?.message || "Failed to send WhatsApp message"
+      data?.error?.message ||
+        "Failed to send WhatsApp message"
     )
   }
 }
