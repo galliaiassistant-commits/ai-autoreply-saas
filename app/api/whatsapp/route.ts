@@ -316,7 +316,8 @@ async function getBusinessServicesText(businessId: string) {
       return finish(quickReply)
     }
 
-    const useBooking = shouldUseBooking(action)
+    const useBooking =
+  shouldUseBooking(action) || Boolean(openBooking)
 
     const isNewBookingRequest =
       action === "book_appointment" &&
@@ -574,7 +575,7 @@ async function saveCustomerName({
 }
 
 function detectUserAction(userText: string) {
-  const lowerText = userText.toLowerCase()
+  const lowerText = userText.toLowerCase().trim()
 
   if (
     lowerText === "hi" ||
@@ -590,6 +591,60 @@ function detectUserAction(userText: string) {
 
   if (lowerText.includes("bye")) {
     return "goodbye"
+  }
+
+  if (
+    lowerText.includes("cancel") ||
+    lowerText.includes("never mind") ||
+    lowerText.includes("nevermind")
+  ) {
+    return "cancel_booking"
+  }
+
+  if (
+    lowerText.includes("change") ||
+    lowerText.includes("move") ||
+    lowerText.includes("reschedule")
+  ) {
+    return "reschedule_booking"
+  }
+
+  const hasBookingWord =
+    lowerText.includes("book") ||
+    lowerText.includes("appointment") ||
+    lowerText.includes("schedule") ||
+    lowerText.includes("reserve")
+
+  const hasDateWord =
+    lowerText.includes("today") ||
+    lowerText.includes("tomorrow") ||
+    lowerText.includes("monday") ||
+    lowerText.includes("tuesday") ||
+    lowerText.includes("wednesday") ||
+    lowerText.includes("thursday") ||
+    lowerText.includes("friday") ||
+    lowerText.includes("saturday") ||
+    lowerText.includes("sunday")
+
+  const hasTimeWord =
+    lowerText.includes("am") ||
+    lowerText.includes("pm") ||
+    /\b\d{1,2}:\d{2}\b/.test(lowerText) ||
+    /\b\d{1,2}\s?(am|pm)\b/.test(lowerText)
+
+  const soundsLikeBooking =
+    lowerText.includes("i want") ||
+    lowerText.includes("i need") ||
+    lowerText.includes("can i get") ||
+    lowerText.includes("let me get") ||
+    lowerText.includes("i would like")
+
+  if (
+    hasBookingWord ||
+    (soundsLikeBooking && (hasDateWord || hasTimeWord)) ||
+    (hasDateWord && hasTimeWord)
+  ) {
+    return "book_appointment"
   }
 
   if (
@@ -609,31 +664,6 @@ function detectUserAction(userText: string) {
     lowerText.includes("service")
   ) {
     return "business_question"
-  }
-
-  if (
-    lowerText.includes("cancel") ||
-    lowerText.includes("never mind") ||
-    lowerText.includes("nevermind")
-  ) {
-    return "cancel_booking"
-  }
-
-  if (
-    lowerText.includes("change") ||
-    lowerText.includes("move") ||
-    lowerText.includes("reschedule")
-  ) {
-    return "reschedule_booking"
-  }
-
-  if (
-    lowerText.includes("book") ||
-    lowerText.includes("appointment") ||
-    lowerText.includes("schedule") ||
-    lowerText.includes("reserve")
-  ) {
-    return "book_appointment"
   }
 
   return "general_chat"
