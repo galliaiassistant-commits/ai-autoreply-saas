@@ -1,6 +1,6 @@
 import Link from "next/link"
 import type { ReactNode } from "react"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import {
@@ -18,7 +18,8 @@ import {
 
 type PageProps = {
   params: Promise<{
-    customerId: string
+    id?: string
+    customerId?: string
   }>
 }
 
@@ -60,7 +61,11 @@ type Memory = {
 export default async function CustomerProfilePage({
   params,
 }: PageProps) {
-  const { customerId } = await params
+  const resolvedParams = await params
+
+  const customerId =
+    resolvedParams.id || resolvedParams.customerId
+
   const business = await getCurrentBusiness()
 
   if (!business) {
@@ -75,6 +80,28 @@ export default async function CustomerProfilePage({
       </PageWrapper>
     )
   }
+
+  if (!customerId || customerId === "undefined") {
+    return (
+      <PageWrapper>
+        <PageHeader
+          title="Customer Error"
+          description="The customer profile link is missing the customer ID."
+        />
+
+        <BackButton
+          href="/dashboard/customers"
+          label="Back to Customers"
+        />
+
+        <div className="mt-6">
+          <EmptyState message="Customer ID missing from the page URL." />
+        </div>
+      </PageWrapper>
+    )
+  }
+
+  const supabase = await createClient()
 
   const { data: customer, error: customerError } = await supabase
     .from("customers")
@@ -104,7 +131,10 @@ export default async function CustomerProfilePage({
           description="This customer does not belong to your business."
         />
 
-        <BackButton href="/dashboard/customers" label="Back to Customers" />
+        <BackButton
+          href="/dashboard/customers"
+          label="Back to Customers"
+        />
       </PageWrapper>
     )
   }
@@ -159,7 +189,10 @@ export default async function CustomerProfilePage({
   return (
     <PageWrapper>
       <div className="mb-6">
-        <BackButton href="/dashboard/customers" label="Back to Customers" />
+        <BackButton
+          href="/dashboard/customers"
+          label="Back to Customers"
+        />
       </div>
 
       <PageHeader
@@ -232,7 +265,10 @@ export default async function CustomerProfilePage({
           <div className="mt-6 space-y-4">
             {safeMessages.length > 0 ? (
               safeMessages.slice(0, 10).map((message) => (
-                <MessageCard key={message.id} message={message} />
+                <MessageCard
+                  key={message.id}
+                  message={message}
+                />
               ))
             ) : (
               <EmptyState message="No messages yet." />
@@ -279,8 +315,16 @@ export default async function CustomerProfilePage({
             </h2>
 
             <div className="mt-5 space-y-3">
-              <StatusRow label="Booked" value={bookedCount} />
-              <StatusRow label="Completed" value={completedCount} />
+              <StatusRow
+                label="Booked"
+                value={bookedCount}
+              />
+
+              <StatusRow
+                label="Completed"
+                value={completedCount}
+              />
+
               <StatusRow
                 label="Missing Details"
                 value={missingDetailsCount}
@@ -297,7 +341,10 @@ export default async function CustomerProfilePage({
             <div className="mt-5 space-y-3">
               {safeMemories.length > 0 ? (
                 safeMemories.slice(0, 5).map((memory) => (
-                  <MemoryCard key={memory.id} memory={memory} />
+                  <MemoryCard
+                    key={memory.id}
+                    memory={memory}
+                  />
                 ))
               ) : (
                 <p className="text-sm text-slate-400">
@@ -318,7 +365,10 @@ export default async function CustomerProfilePage({
         <div className="mt-6 space-y-4">
           {safeBookings.length > 0 ? (
             safeBookings.map((booking) => (
-              <BookingCard key={booking.id} booking={booking} />
+              <BookingCard
+                key={booking.id}
+                booking={booking}
+              />
             ))
           ) : (
             <EmptyState message="No bookings for this customer yet." />
@@ -541,11 +591,21 @@ function EmptyState({ message }: { message: string }) {
 function formatDate(date?: string | null) {
   if (!date) return "Unknown"
 
-  return new Date(date).toLocaleDateString()
+  return new Date(date).toLocaleDateString("en-US", {
+    timeZone: "America/Jamaica",
+  })
 }
 
 function formatDateTime(date?: string | null) {
   if (!date) return "Unknown"
 
-  return new Date(date).toLocaleString()
+  return new Date(date).toLocaleString("en-US", {
+    timeZone: "America/Jamaica",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
 }

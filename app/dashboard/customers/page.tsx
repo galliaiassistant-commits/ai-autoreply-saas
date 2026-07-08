@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import {
@@ -27,16 +27,25 @@ export default async function CustomersPage() {
     )
   }
 
-  const { data: customers } = await supabase
+  const supabase = await createClient()
+
+  const { data: customers, error } = await supabase
     .from("customers")
-    .select("*")
+    .select("id, business_id, name, phone_number, created_at, updated_at")
     .eq("business_id", business.id)
     .order("created_at", { ascending: false })
 
-  const totalCustomers = customers?.length || 0
+  if (error) {
+    console.error("CUSTOMERS PAGE ERROR:", error)
+  }
+
+  const safeCustomers =
+    customers?.filter((customer) => Boolean(customer.id)) || []
+
+  const totalCustomers = safeCustomers.length
 
   const namedCustomers =
-    customers?.filter((customer) => customer.name).length || 0
+    safeCustomers.filter((customer) => customer.name).length
 
   const unnamedCustomers =
     totalCustomers - namedCustomers
@@ -74,8 +83,8 @@ export default async function CustomersPage() {
         </h2>
 
         <div className="mt-6 space-y-4">
-          {customers && customers.length > 0 ? (
-            customers.map((customer) => (
+          {safeCustomers.length > 0 ? (
+            safeCustomers.map((customer) => (
               <Link
                 key={customer.id}
                 href={`/dashboard/customers/${customer.id}`}
@@ -96,7 +105,9 @@ export default async function CustomersPage() {
                       <CalendarDays size={16} />
                       Joined{" "}
                       {customer.created_at
-                        ? new Date(customer.created_at).toLocaleDateString()
+                        ? new Date(
+                            customer.created_at
+                          ).toLocaleDateString()
                         : "Unknown"}
                     </div>
                   </div>
