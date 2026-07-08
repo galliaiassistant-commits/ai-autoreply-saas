@@ -184,8 +184,8 @@ ${JSON.stringify(isNewBookingRequest ? null : openBooking)}
 Current customer message:
 ${userText}
 
-Today's date:
-${new Date().toISOString()}
+Today's date and time in Jamaica:
+${getJamaicaNowText()}
 
 Merge the customer message with the existing booking.
 Preserve existing booking information unless the customer changes it.
@@ -213,6 +213,19 @@ Preserve existing booking information unless the customer changes it.
       is_booking: false,
     }
   }
+}
+
+function getJamaicaNowText() {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Jamaica",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date())
 }
 
 function cleanJson(value: string) {

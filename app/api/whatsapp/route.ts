@@ -229,13 +229,17 @@ async function getBusinessServicesText(businessId: string) {
 
     await updateLastSeen(from)
 
-    if (userText.toLowerCase().startsWith("my name is")) {
-      await saveCustomerName({
-        customer,
-        businessId: business.id,
-        userText,
-      })
-    }
+    const detectedName = detectCustomerName(userText)
+
+if (detectedName) {
+  await saveCustomerName({
+    customer,
+    businessId: business.id,
+    name: detectedName,
+  })
+
+  customer.name = detectedName
+}
 
     const { error: userMsgError } = await supabase
       .from("messages")
@@ -527,19 +531,49 @@ async function updateLastSeen(phoneNumber: string) {
   console.log("USER UPSERT ERROR:", error)
 }
 
+function detectCustomerName(userText: string) {
+  const cleanText = userText.trim()
+
+  const patterns = [
+    /^my name is\s+(.+)$/i,
+    /^i am\s+(.+)$/i,
+    /^i'm\s+(.+)$/i,
+    /^im\s+(.+)$/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = cleanText.match(pattern)
+
+    if (match?.[1]) {
+      return cleanName(match[1])
+    }
+  }
+
+  return null
+}
+
+function cleanName(value: string) {
+  return value
+    .replace(/[?.!,]/g, "")
+    .trim()
+    .split(" ")
+    .slice(0, 3)
+    .map((part) =>
+      part.charAt(0).toUpperCase() +
+      part.slice(1).toLowerCase()
+    )
+    .join(" ")
+}
+
 async function saveCustomerName({
   customer,
   businessId,
-  userText,
+  name,
 }: {
   customer: Customer
   businessId: string
-  userText: string
+  name: string
 }) {
-  const name = userText
-    .replace(/my name is/i, "")
-    .trim()
-
   if (!name) return
 
   const { error: customerError } = await supabase

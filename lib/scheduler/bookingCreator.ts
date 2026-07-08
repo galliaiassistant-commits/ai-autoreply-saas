@@ -7,6 +7,18 @@ import {
   CreateBookingResult,
 } from "./types"
 
+function formatBookingTime(bookingTime: string) {
+  return new Date(bookingTime).toLocaleString("en-US", {
+    timeZone: "America/Jamaica",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
+}
+
 export async function createScheduledBooking({
   businessId,
   customerId,
@@ -25,6 +37,12 @@ export async function createScheduledBooking({
       suggestions: [],
     }
   }
+
+  console.log("CREATE BOOKING TIME RAW:", bookingTime)
+  console.log(
+    "CREATE BOOKING TIME JAMAICA:",
+    formatBookingTime(bookingTime)
+  )
 
   const availability = await checkAvailability({
     businessId,
@@ -69,13 +87,7 @@ export async function createScheduledBooking({
     }
   }
 
-  const formattedTime = new Date(bookingTime).toLocaleString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })
+  const formattedTime = formatBookingTime(bookingTime)
 
   return {
     success: true,
