@@ -160,6 +160,9 @@ Rules:
 - If customer gives only a new time and the open booking already has a date, keep the existing date but change the time.
 - If customer mentions a day of the week such as Sunday, Monday, Tuesday, etc., include it in requested_day.
 - Use ISO date format for booking_time.
+- The business timezone is America/Jamaica, UTC-05:00.
+- When returning booking_time, always include the timezone offset -05:00.
+- Example: if the customer says tomorrow at 1pm, return YYYY-MM-DDT13:00:00-05:00, not YYYY-MM-DDT13:00:00Z.
 
 Return shape:
 {
@@ -194,7 +197,14 @@ Preserve existing booking information unless the customer changes it.
   const raw = bookingExtract.choices[0].message.content || "{}"
 
   try {
-    return JSON.parse(cleanJson(raw))
+    const parsed = JSON.parse(cleanJson(raw))
+
+    return {
+      ...parsed,
+      booking_time: normalizeJamaicaBookingTime(
+        parsed.booking_time
+      ),
+    }
   } catch (error) {
     console.error("BOOKING JSON PARSE ERROR:", error)
     console.error("RAW BOOKING JSON:", raw)
@@ -212,6 +222,32 @@ function cleanJson(value: string) {
     .trim()
 }
 
+function normalizeJamaicaBookingTime(value?: string | null) {
+  if (!value) return null
+
+  const cleanValue = value.trim()
+
+  const hasTimezone =
+    /z$/i.test(cleanValue) ||
+    /[+-]\d{2}:\d{2}$/.test(cleanValue)
+
+  if (hasTimezone) {
+    return cleanValue
+  }
+
+  const withT = cleanValue.replace(" ", "T")
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(withT)) {
+    return `${withT}:00-05:00`
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(withT)) {
+    return `${withT}-05:00`
+  }
+
+  return cleanValue
+}
+
 function formatSuggestions(suggestions?: string[]) {
   if (!suggestions || suggestions.length === 0) {
     return ""
@@ -225,6 +261,7 @@ function formatSuggestions(suggestions?: string[]) {
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
+        timeZone: "America/Jamaica",
       })
     )
     .join(", ")
@@ -273,7 +310,6 @@ export async function saveBookingAndGetReply({
   openBooking,
   booking,
   isNewBookingRequest,
-  userText,
 }: {
   businessId: string
   customerId: string
@@ -313,6 +349,8 @@ export async function saveBookingAndGetReply({
     booking.booking_time ??
     (isNewBookingRequest ? null : openBooking?.booking_time) ??
     null
+
+  console.log("FINAL BOOKING TIME:", bookingTime)
 
   const hasRealTime =
     Boolean(bookingTime) &&
