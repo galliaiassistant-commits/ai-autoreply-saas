@@ -20,7 +20,7 @@ export default async function CustomersPage() {
           description="Manage your customers and view their profiles."
         />
 
-        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
+        <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-8 text-red-300">
           No business found for this account.
         </div>
       </div>
@@ -31,24 +31,16 @@ export default async function CustomersPage() {
 
   const { data: customers, error } = await supabase
     .from("customers")
-    .select("id, business_id, name, phone_number, created_at, updated_at")
+    .select("id, business_id, name, phone_number, created_at")
     .eq("business_id", business.id)
     .order("created_at", { ascending: false })
 
-  if (error) {
-    console.error("CUSTOMERS PAGE ERROR:", error)
-  }
-
-  const safeCustomers =
-    customers?.filter((customer) => Boolean(customer.id)) || []
+  const safeCustomers = customers || []
 
   const totalCustomers = safeCustomers.length
-
   const namedCustomers =
     safeCustomers.filter((customer) => customer.name).length
-
-  const unnamedCustomers =
-    totalCustomers - namedCustomers
+  const unnamedCustomers = totalCustomers - namedCustomers
 
   return (
     <div>
@@ -56,6 +48,30 @@ export default async function CustomersPage() {
         title="Customers"
         description="Manage your customers and view their profiles."
       />
+
+      <div className="mt-6 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-5 text-sm text-yellow-100">
+        <p>
+          Dashboard business ID:{" "}
+          <span className="font-mono">{business.id}</span>
+        </p>
+
+        <p className="mt-2">
+          Business name:{" "}
+          <span className="font-semibold">
+            {business.business_name || business.name || "Unknown"}
+          </span>
+        </p>
+
+        <p className="mt-2">
+          Customers loaded: {safeCustomers.length}
+        </p>
+
+        {error && (
+          <p className="mt-2 text-red-300">
+            Supabase error: {error.message}
+          </p>
+        )}
+      </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-3">
         <StatCard
@@ -141,13 +157,8 @@ function StatCard({
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-400">
-          {title}
-        </p>
-
-        <div className="text-slate-400">
-          {icon}
-        </div>
+        <p className="text-sm text-slate-400">{title}</p>
+        <div className="text-slate-400">{icon}</div>
       </div>
 
       <p className="mt-4 text-3xl font-bold text-white">
