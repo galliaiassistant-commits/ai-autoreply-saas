@@ -13,6 +13,30 @@ export async function getCurrentBusiness() {
     return null
   }
 
+  const defaultBusinessId =
+    process.env.DEFAULT_BUSINESS_ID
+
+  if (defaultBusinessId) {
+    const { data: defaultBusiness, error: defaultError } =
+      await supabase
+        .from("businesses")
+        .select("*")
+        .eq("id", defaultBusinessId)
+        .eq("owner_id", user.id)
+        .maybeSingle()
+
+    if (defaultError) {
+      console.error(
+        "GET DEFAULT BUSINESS ERROR:",
+        defaultError
+      )
+    }
+
+    if (defaultBusiness) {
+      return defaultBusiness
+    }
+  }
+
   const { data: business, error } = await supabase
     .from("businesses")
     .select("*")
