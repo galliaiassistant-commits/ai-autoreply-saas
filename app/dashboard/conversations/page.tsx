@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import {
@@ -27,28 +27,46 @@ export default async function ConversationsPage() {
     )
   }
 
-  const { data: customers } = await supabase
-    .from("customers")
-    .select("*")
-    .eq("business_id", business.id)
-    .order("created_at", { ascending: false })
+  const supabase = await createClient()
 
-  const { data: messages } = await supabase
-    .from("messages")
-    .select("*")
-    .eq("business_id", business.id)
-    .order("created_at", { ascending: false })
+  const [
+    { data: customers, error: customersError },
+    { data: messages, error: messagesError },
+  ] = await Promise.all([
+    supabase
+      .from("customers")
+      .select("id, business_id, name, phone_number, created_at")
+      .eq("business_id", business.id)
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("messages")
+      .select("id, business_id, customer_id, role, message, created_at")
+      .eq("business_id", business.id)
+      .order("created_at", { ascending: false }),
+  ])
+
+  if (customersError) {
+    console.error("CONVERSATIONS CUSTOMERS ERROR:", customersError)
+  }
+
+  if (messagesError) {
+    console.error("CONVERSATIONS MESSAGES ERROR:", messagesError)
+  }
+
+  const safeCustomers = customers || []
+  const safeMessages = messages || []
 
   const conversationCustomers =
-    customers?.filter((customer) =>
-      messages?.some((message) => message.customer_id === customer.id)
-    ) || []
+    safeCustomers.filter((customer) =>
+      safeMessages.some(
+        (message) => message.customer_id === customer.id
+      )
+    )
 
-  const totalMessages = messages?.length || 0
-
+  const totalMessages = safeMessages.length
   const activeCustomers = conversationCustomers.length
-
-  const latestMessage = messages?.[0]
+  const latestMessage = safeMessages[0]
 
   return (
     <div>
@@ -74,7 +92,7 @@ export default async function ConversationsPage() {
           title="Latest Activity"
           value={
             latestMessage?.created_at
-              ? new Date(latestMessage.created_at).toLocaleDateString()
+              ? formatDate(latestMessage.created_at)
               : "None"
           }
           icon={<Clock size={20} />}
@@ -90,9 +108,9 @@ export default async function ConversationsPage() {
           {conversationCustomers.length > 0 ? (
             conversationCustomers.map((customer) => {
               const customerMessages =
-                messages?.filter(
+                safeMessages.filter(
                   (message) => message.customer_id === customer.id
-                ) || []
+                )
 
               const lastMessage = customerMessages[0]
 
@@ -119,7 +137,7 @@ export default async function ConversationsPage() {
 
                       <p className="mt-2 text-xs text-slate-500">
                         {lastMessage?.created_at
-                          ? new Date(lastMessage.created_at).toLocaleString()
+                          ? formatDateTime(lastMessage.created_at)
                           : "No activity yet"}
                       </p>
                     </div>
@@ -174,4 +192,26 @@ function StatCard({
       </p>
     </div>
   )
+}
+
+function formatDate(date?: string | null) {
+  if (!date) return "Unknown"
+
+  return new Date(date).toLocaleDateString("en-US", {
+    timeZone: "America/Jamaica",
+  })
+}
+
+function formatDateTime(date?: string | null) {
+  if (!date) return "Unknown"
+
+  return new Date(date).toLocaleString("en-US", {
+    timeZone: "America/Jamaica",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
 }

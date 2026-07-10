@@ -1,6 +1,6 @@
 import Link from "next/link"
 import type { ReactNode } from "react"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import {
@@ -24,7 +24,8 @@ export default async function ConversationDetailPage({
 }: PageProps) {
   const { customerId } = await params
   const business = await getCurrentBusiness()
-
+  const supabase = await createClient()
+  
   if (!business) {
     return (
       <PageShell>
