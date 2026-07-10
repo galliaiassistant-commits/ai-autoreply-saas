@@ -1,4 +1,5 @@
 import Link from "next/link"
+import type { ReactNode } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
@@ -27,37 +28,7 @@ export default async function ConversationsPage() {
     )
   }
 
-  export default async function ConversationsPage() {
-  const business = await getCurrentBusiness()
-
-  if (!business) {
-    return (
-      <div>
-        <PageHeader
-          title="Conversations"
-          description="View customer chats handled by Jhyro AI."
-        />
-
-        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
-          No business found for this account.
-        </div>
-      </div>
-    )
-  }
-
   const supabase = await createClient()
-
-  const { data: customers } = await supabase
-    .from("customers")
-    .select("*")
-    .eq("business_id", business.id)
-    .order("created_at", { ascending: false })
-
-  const { data: messages } = await supabase
-    .from("messages")
-    .select("*")
-    .eq("business_id", business.id)
-    .order("created_at", { ascending: false })
 
   const [
     { data: customers, error: customersError },
@@ -87,12 +58,12 @@ export default async function ConversationsPage() {
   const safeCustomers = customers || []
   const safeMessages = messages || []
 
-  const conversationCustomers =
-    safeCustomers.filter((customer) =>
+  const conversationCustomers = safeCustomers.filter(
+    (customer) =>
       safeMessages.some(
         (message) => message.customer_id === customer.id
       )
-    )
+  )
 
   const totalMessages = safeMessages.length
   const activeCustomers = conversationCustomers.length
@@ -137,10 +108,9 @@ export default async function ConversationsPage() {
         <div className="mt-6 space-y-4">
           {conversationCustomers.length > 0 ? (
             conversationCustomers.map((customer) => {
-              const customerMessages =
-                safeMessages.filter(
-                  (message) => message.customer_id === customer.id
-                )
+              const customerMessages = safeMessages.filter(
+                (message) => message.customer_id === customer.id
+              )
 
               const lastMessage = customerMessages[0]
 
@@ -203,7 +173,7 @@ function StatCard({
 }: {
   title: string
   value: string | number
-  icon: React.ReactNode
+  icon: ReactNode
 }) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
