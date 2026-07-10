@@ -2,6 +2,7 @@ import Link from "next/link"
 import type { ReactNode } from "react"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
+import BillingCheckoutButton from "./BillingCheckoutButton"
 import {
   CreditCard,
   ShieldCheck,
@@ -12,12 +13,21 @@ import {
   MessageCircle,
   CalendarDays,
   Bot,
-  ArrowRight,
   Lock,
 } from "lucide-react"
 
-export default async function BillingPage() {
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    success?: string
+    canceled?: string
+  }>
+}) {
   const business = await getCurrentBusiness()
+  const resolvedSearchParams = searchParams
+    ? await searchParams
+    : {}
 
   if (!business) {
     return (
@@ -39,15 +49,26 @@ export default async function BillingPage() {
     )
   }
 
-  const plan =
-    business.plan ||
+  const planRaw =
     business.subscription_plan ||
-    "Starter"
+    business.plan ||
+    "free"
+
+  const plan = String(planRaw).toLowerCase()
+
+  const planLabel =
+    plan === "starter"
+      ? "Starter"
+      : plan === "pro"
+        ? "Pro"
+        : plan === "business"
+          ? "Business"
+          : "Free"
 
   const subscriptionStatus =
     business.subscription_status ||
     business.billing_status ||
-    "Setup Required"
+    "inactive"
 
   const isActive =
     subscriptionStatus === "active" ||
@@ -59,6 +80,18 @@ export default async function BillingPage() {
         title="Billing"
         description="Manage plans, subscriptions, invoices, and payment setup."
       />
+
+      {resolvedSearchParams.success === "true" && (
+        <div className="mt-6 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-sm font-semibold text-green-300">
+          Payment started successfully. Stripe will update your plan once the webhook is received.
+        </div>
+      )}
+
+      {resolvedSearchParams.canceled === "true" && (
+        <div className="mt-6 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm font-semibold text-yellow-300">
+          Checkout was canceled. You can choose a plan anytime.
+        </div>
+      )}
 
       <section className="mt-6 rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -82,9 +115,7 @@ export default async function BillingPage() {
             </div>
 
             <p className="mt-6 max-w-3xl text-slate-400">
-              Billing is scoped to the signed-in business account. This page is
-              ready for Stripe subscriptions, invoices, plan upgrades, and usage
-              tracking.
+              Billing is scoped to the signed-in business account. Choose a Jhyro AI plan and pay securely with Stripe Checkout.
             </p>
           </div>
 
@@ -127,7 +158,7 @@ export default async function BillingPage() {
       <div className="mt-6 grid gap-6 md:grid-cols-3">
         <StatCard
           title="Current Plan"
-          value={plan}
+          value={planLabel}
           icon={<Zap size={20} />}
         />
 
@@ -139,7 +170,7 @@ export default async function BillingPage() {
 
         <StatCard
           title="Payments"
-          value="Stripe Next"
+          value="Stripe Ready"
           icon={<Lock size={20} />}
         />
       </div>
@@ -151,50 +182,54 @@ export default async function BillingPage() {
           </h2>
 
           <p className="mt-1 text-sm text-slate-400">
-            These plans are ready for Stripe checkout integration.
+            Choose a monthly plan. Payments are handled securely by Stripe.
           </p>
 
           <div className="mt-6 grid gap-5 lg:grid-cols-3">
             <PlanCard
               name="Starter"
-              price="$19"
-              description="For small businesses testing AI replies."
+              planId="starter"
+              price="$10"
+              description="For small businesses getting started with AI customer support."
               features={[
                 "1 business workspace",
                 "WhatsApp AI replies",
-                "Basic booking capture",
-                "Customer memory",
+                "Customer conversations",
+                "Customer profiles",
+                "Basic dashboard",
               ]}
-              active={plan.toLowerCase() === "starter"}
+              active={plan === "starter"}
             />
 
             <PlanCard
               name="Pro"
-              price="$49"
-              description="For businesses that want full automation."
+              planId="pro"
+              price="$25"
+              description="For growing businesses that need smarter automation."
               features={[
                 "Everything in Starter",
-                "Advanced booking calendar",
-                "Integrations dashboard",
-                "Analytics",
-                "Priority AI responses",
+                "Appointment bookings",
+                "Customer memory",
+                "Business knowledge replies",
+                "Service management",
               ]}
-              active={plan.toLowerCase() === "pro"}
+              active={plan === "pro"}
               highlighted
             />
 
             <PlanCard
-              name="Agency"
-              price="$149"
-              description="For managing multiple client businesses."
+              name="Business"
+              planId="business"
+              price="$50"
+              description="For businesses that need advanced AI automation and scaling."
               features={[
+                "Everything in Pro",
                 "Multiple businesses",
-                "Team access",
-                "Advanced reporting",
-                "White-label ready",
-                "Priority support",
+                "Advanced setup options",
+                "Priority improvements",
+                "Expanded automation",
               ]}
-              active={plan.toLowerCase() === "agency"}
+              active={plan === "business"}
             />
           </div>
         </section>
@@ -224,7 +259,7 @@ export default async function BillingPage() {
 
               <InfoRow
                 label="Plan"
-                value={plan}
+                value={planLabel}
                 icon={<Zap size={16} />}
               />
 
@@ -249,7 +284,7 @@ export default async function BillingPage() {
 
               <SetupRow
                 label="Stripe checkout"
-                ok={false}
+                ok
               />
 
               <SetupRow
@@ -259,13 +294,12 @@ export default async function BillingPage() {
 
               <SetupRow
                 label="Webhook handling"
-                ok={false}
+                ok
               />
             </div>
 
             <p className="mt-5 text-sm leading-relaxed text-slate-500">
-              We will connect Stripe after the dashboard security pass is done.
-              That way payments are added on top of a safe multi-business system.
+              Checkout is connected. The customer portal can be added later so users can update cards, cancel plans, and download invoices.
             </p>
           </section>
         </aside>
@@ -277,8 +311,7 @@ export default async function BillingPage() {
         </h2>
 
         <p className="mt-1 text-sm text-slate-400">
-          Usage cards are scoped to this business and ready to connect to real
-          counters later.
+          Usage cards are scoped to this business and ready to connect to real counters later.
         </p>
 
         <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -302,7 +335,11 @@ export default async function BillingPage() {
 
           <UsageCard
             title="Businesses"
-            value="1 workspace"
+            value={
+              plan === "business"
+                ? "Multiple workspaces"
+                : "1 workspace"
+            }
             icon={<Building2 size={20} />}
           />
         </div>
@@ -310,23 +347,23 @@ export default async function BillingPage() {
 
       <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-6">
         <h2 className="text-xl font-bold text-white">
-          Next Billing Steps
+          Billing Notes
         </h2>
 
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           <NextStep
-            title="Create Stripe account"
-            description="Connect Jhyro AI to Stripe so users can subscribe."
+            title="Secure checkout"
+            description="Customers pay on Stripe’s hosted checkout page."
           />
 
           <NextStep
-            title="Add checkout route"
-            description="Create an API route that starts a Stripe checkout session."
+            title="Webhook updates"
+            description="Stripe updates your business subscription after payment."
           />
 
           <NextStep
-            title="Add webhook route"
-            description="Listen for subscription changes and update the business plan."
+            title="Portal later"
+            description="A customer billing portal can be added after checkout is tested."
           />
         </div>
       </section>
@@ -364,6 +401,7 @@ function StatCard({
 
 function PlanCard({
   name,
+  planId,
   price,
   description,
   features,
@@ -371,6 +409,7 @@ function PlanCard({
   highlighted,
 }: {
   name: string
+  planId: "starter" | "pro" | "business"
   price: string
   description: string
   features: string[]
@@ -449,18 +488,11 @@ function PlanCard({
         ))}
       </div>
 
-      <button
-        type="button"
-        disabled
-        className={
-          highlighted
-            ? "mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 font-semibold text-white opacity-70"
-            : "mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 px-4 py-3 font-semibold text-slate-300 opacity-70"
-        }
-      >
-        Stripe Coming Next
-        <ArrowRight size={16} />
-      </button>
+      <BillingCheckoutButton
+        plan={planId}
+        highlighted={highlighted}
+        active={active}
+      />
     </div>
   )
 }
