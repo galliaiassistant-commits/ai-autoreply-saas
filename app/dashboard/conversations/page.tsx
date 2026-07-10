@@ -27,7 +27,37 @@ export default async function ConversationsPage() {
     )
   }
 
+  export default async function ConversationsPage() {
+  const business = await getCurrentBusiness()
+
+  if (!business) {
+    return (
+      <div>
+        <PageHeader
+          title="Conversations"
+          description="View customer chats handled by Jhyro AI."
+        />
+
+        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
+          No business found for this account.
+        </div>
+      </div>
+    )
+  }
+
   const supabase = await createClient()
+
+  const { data: customers } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("business_id", business.id)
+    .order("created_at", { ascending: false })
+
+  const { data: messages } = await supabase
+    .from("messages")
+    .select("*")
+    .eq("business_id", business.id)
+    .order("created_at", { ascending: false })
 
   const [
     { data: customers, error: customersError },
