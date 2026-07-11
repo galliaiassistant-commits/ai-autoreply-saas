@@ -1,7 +1,9 @@
 import Link from "next/link"
+import type { ReactNode } from "react"
 import { getCurrentBusiness } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
 import { PageHeader } from "@/components/dashboard/PageHeader"
+import MetaEmbeddedSignupButton from "./MetaEmbeddedSignupButton"
 import {
   MessageCircle,
   CheckCircle2,
@@ -14,6 +16,10 @@ import {
 
 export default async function WhatsAppConnectionPage() {
   const business = await getCurrentBusiness()
+
+  const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID
+  const metaConfigId =
+    process.env.NEXT_PUBLIC_META_WHATSAPP_CONFIG_ID
 
   if (!business) {
     return (
@@ -32,14 +38,30 @@ export default async function WhatsAppConnectionPage() {
 
   const supabase = await createClient()
 
-  const { data: integration } = await supabase
+  const { data: integration, error } = await supabase
     .from("business_integrations")
     .select(
-      "id, provider, connected, phone_number_id, business_account_id, display_phone_number, connection_method, last_connected_at, disconnected_at, human_takeover_enabled, human_takeover_until"
+      `
+      id,
+      provider,
+      connected,
+      phone_number_id,
+      business_account_id,
+      display_phone_number,
+      connection_method,
+      last_connected_at,
+      disconnected_at,
+      human_takeover_enabled,
+      human_takeover_until
+    `
     )
     .eq("business_id", business.id)
     .eq("provider", "whatsapp")
     .maybeSingle()
+
+  if (error) {
+    console.error("WHATSAPP INTEGRATION LOAD ERROR:", error)
+  }
 
   const isConnected =
     integration?.connected === true &&
@@ -158,22 +180,34 @@ export default async function WhatsAppConnectionPage() {
 
             <InfoRow
               label="Display Phone"
-              value={integration?.display_phone_number || "Not connected"}
+              value={
+                integration?.display_phone_number ||
+                "Not connected"
+              }
             />
 
             <InfoRow
               label="Phone Number ID"
-              value={integration?.phone_number_id || "Not connected"}
+              value={
+                integration?.phone_number_id ||
+                "Not connected"
+              }
             />
 
             <InfoRow
               label="WhatsApp Business Account ID"
-              value={integration?.business_account_id || "Not connected"}
+              value={
+                integration?.business_account_id ||
+                "Not connected"
+              }
             />
 
             <InfoRow
               label="Connection Method"
-              value={integration?.connection_method || "Not connected"}
+              value={
+                integration?.connection_method ||
+                "Not connected"
+              }
             />
 
             <InfoRow
@@ -198,18 +232,17 @@ export default async function WhatsAppConnectionPage() {
             </h2>
 
             <p className="mt-3 text-sm leading-relaxed text-slate-400">
-              Next we will add the Meta Embedded Signup button here. After a
-              business authorizes Jhyro AI, this page will save their WABA ID,
-              phone-number ID, and connection status.
+              Use Meta Embedded Signup to connect this business’s WhatsApp
+              account. After authorization, Jhyro AI will save the WABA ID,
+              phone-number ID, display number, and secure token.
             </p>
 
-            <button
-              type="button"
-              disabled
-              className="mt-6 w-full rounded-xl bg-white px-5 py-3 font-semibold text-black opacity-60"
-            >
-              Meta Setup Coming Next
-            </button>
+            <div className="mt-6">
+              <MetaEmbeddedSignupButton
+                appId={metaAppId}
+                configId={metaConfigId}
+              />
+            </div>
           </section>
 
           <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
@@ -242,7 +275,7 @@ function StatusCard({
 }: {
   title: string
   value: string
-  icon: React.ReactNode
+  icon: ReactNode
 }) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
