@@ -185,7 +185,7 @@ export default async function BillingPage() {
           <div className="mt-6 grid gap-5 lg:grid-cols-3">
             <PlanCard
               name="Starter"
-              price="$10"
+              price="$29.99"
               description="For small businesses getting started with AI customer support."
               features={[
                 "1 business workspace",
@@ -206,7 +206,7 @@ export default async function BillingPage() {
 
             <PlanCard
               name="Pro"
-              price="$25"
+              price="$49.99"
               description="For growing businesses that need smarter automation."
               features={[
                 "Everything in Starter",
@@ -228,7 +228,7 @@ export default async function BillingPage() {
 
             <PlanCard
               name="Business"
-              price="$50"
+              price="$99.99"
               description="For businesses that need advanced AI automation and scaling."
               features={[
                 "Everything in Pro",
