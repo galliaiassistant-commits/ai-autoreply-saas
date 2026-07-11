@@ -2,7 +2,7 @@ import Link from "next/link"
 import type { ReactNode } from "react"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
-import BillingCheckoutButton from "./BillingCheckoutButton"
+import PayPalSubscriptionButton from "./PayPalSubscriptionButton"
 import {
   CreditCard,
   ShieldCheck,
@@ -16,18 +16,20 @@ import {
   Lock,
 } from "lucide-react"
 
-export default async function BillingPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{
-    success?: string
-    canceled?: string
-  }>
-}) {
+export default async function BillingPage() {
   const business = await getCurrentBusiness()
-  const resolvedSearchParams = searchParams
-    ? await searchParams
-    : {}
+
+  const paypalClientId =
+    process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID
+
+  const starterPlanId =
+    process.env.NEXT_PUBLIC_PAYPAL_STARTER_PLAN_ID
+
+  const proPlanId =
+    process.env.NEXT_PUBLIC_PAYPAL_PRO_PLAN_ID
+
+  const businessPlanId =
+    process.env.NEXT_PUBLIC_PAYPAL_BUSINESS_PLAN_ID
 
   if (!business) {
     return (
@@ -70,6 +72,9 @@ export default async function BillingPage({
     business.billing_status ||
     "inactive"
 
+  const paymentProvider =
+    business.payment_provider || "none"
+
   const isActive =
     subscriptionStatus === "active" ||
     subscriptionStatus === "trialing"
@@ -80,18 +85,6 @@ export default async function BillingPage({
         title="Billing"
         description="Manage plans, subscriptions, invoices, and payment setup."
       />
-
-      {resolvedSearchParams.success === "true" && (
-        <div className="mt-6 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-sm font-semibold text-green-300">
-          Payment started successfully. Stripe will update your plan once the webhook is received.
-        </div>
-      )}
-
-      {resolvedSearchParams.canceled === "true" && (
-        <div className="mt-6 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm font-semibold text-yellow-300">
-          Checkout was canceled. You can choose a plan anytime.
-        </div>
-      )}
 
       <section className="mt-6 rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -115,7 +108,7 @@ export default async function BillingPage({
             </div>
 
             <p className="mt-6 max-w-3xl text-slate-400">
-              Billing is scoped to the signed-in business account. Choose a Jhyro AI plan and pay securely with Stripe Checkout.
+              Billing is scoped to the signed-in business account. Choose a Jhyro AI plan and subscribe securely with PayPal.
             </p>
           </div>
 
@@ -170,7 +163,11 @@ export default async function BillingPage({
 
         <StatCard
           title="Payments"
-          value="Stripe Ready"
+          value={
+            paymentProvider === "paypal"
+              ? "PayPal Active"
+              : "PayPal Ready"
+          }
           icon={<Lock size={20} />}
         />
       </div>
@@ -182,13 +179,12 @@ export default async function BillingPage({
           </h2>
 
           <p className="mt-1 text-sm text-slate-400">
-            Choose a monthly plan. Payments are handled securely by Stripe.
+            Choose a monthly plan. Subscriptions are handled by PayPal.
           </p>
 
           <div className="mt-6 grid gap-5 lg:grid-cols-3">
             <PlanCard
               name="Starter"
-              planId="starter"
               price="$10"
               description="For small businesses getting started with AI customer support."
               features={[
@@ -198,12 +194,18 @@ export default async function BillingPage({
                 "Customer profiles",
                 "Basic dashboard",
               ]}
-              active={plan === "starter"}
-            />
+              active={plan === "starter" && isActive}
+            >
+              <PayPalSubscriptionButton
+                plan="starter"
+                planId={starterPlanId}
+                clientId={paypalClientId}
+                active={plan === "starter" && isActive}
+              />
+            </PlanCard>
 
             <PlanCard
               name="Pro"
-              planId="pro"
               price="$25"
               description="For growing businesses that need smarter automation."
               features={[
@@ -213,13 +215,19 @@ export default async function BillingPage({
                 "Business knowledge replies",
                 "Service management",
               ]}
-              active={plan === "pro"}
+              active={plan === "pro" && isActive}
               highlighted
-            />
+            >
+              <PayPalSubscriptionButton
+                plan="pro"
+                planId={proPlanId}
+                clientId={paypalClientId}
+                active={plan === "pro" && isActive}
+              />
+            </PlanCard>
 
             <PlanCard
               name="Business"
-              planId="business"
               price="$50"
               description="For businesses that need advanced AI automation and scaling."
               features={[
@@ -229,8 +237,15 @@ export default async function BillingPage({
                 "Priority improvements",
                 "Expanded automation",
               ]}
-              active={plan === "business"}
-            />
+              active={plan === "business" && isActive}
+            >
+              <PayPalSubscriptionButton
+                plan="business"
+                planId={businessPlanId}
+                clientId={paypalClientId}
+                active={plan === "business" && isActive}
+              />
+            </PlanCard>
           </div>
         </section>
 
@@ -268,12 +283,18 @@ export default async function BillingPage({
                 value={subscriptionStatus}
                 icon={<CreditCard size={16} />}
               />
+
+              <InfoRow
+                label="Provider"
+                value={paymentProvider}
+                icon={<Lock size={16} />}
+              />
             </div>
           </section>
 
           <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
             <h2 className="text-lg font-bold text-white">
-              Stripe Setup
+              PayPal Setup
             </h2>
 
             <div className="mt-5 space-y-3">
@@ -283,23 +304,28 @@ export default async function BillingPage({
               />
 
               <SetupRow
-                label="Stripe checkout"
-                ok
+                label="PayPal client ID"
+                ok={Boolean(paypalClientId)}
               />
 
               <SetupRow
-                label="Customer portal"
-                ok={false}
+                label="Starter plan"
+                ok={Boolean(starterPlanId)}
               />
 
               <SetupRow
-                label="Webhook handling"
-                ok
+                label="Pro plan"
+                ok={Boolean(proPlanId)}
+              />
+
+              <SetupRow
+                label="Business plan"
+                ok={Boolean(businessPlanId)}
               />
             </div>
 
             <p className="mt-5 text-sm leading-relaxed text-slate-500">
-              Checkout is connected. The customer portal can be added later so users can update cards, cancel plans, and download invoices.
+              PayPal subscriptions are connected. Webhooks can be added next to automatically track cancellations and failed payments.
             </p>
           </section>
         </aside>
@@ -344,29 +370,6 @@ export default async function BillingPage({
           />
         </div>
       </section>
-
-      <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-6">
-        <h2 className="text-xl font-bold text-white">
-          Billing Notes
-        </h2>
-
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
-          <NextStep
-            title="Secure checkout"
-            description="Customers pay on Stripe’s hosted checkout page."
-          />
-
-          <NextStep
-            title="Webhook updates"
-            description="Stripe updates your business subscription after payment."
-          />
-
-          <NextStep
-            title="Portal later"
-            description="A customer billing portal can be added after checkout is tested."
-          />
-        </div>
-      </section>
     </div>
   )
 }
@@ -401,20 +404,20 @@ function StatCard({
 
 function PlanCard({
   name,
-  planId,
   price,
   description,
   features,
   active,
   highlighted,
+  children,
 }: {
   name: string
-  planId: "starter" | "pro" | "business"
   price: string
   description: string
   features: string[]
   active?: boolean
   highlighted?: boolean
+  children: ReactNode
 }) {
   return (
     <div
@@ -488,11 +491,7 @@ function PlanCard({
         ))}
       </div>
 
-      <BillingCheckoutButton
-        plan={planId}
-        highlighted={highlighted}
-        active={active}
-      />
+      {children}
     </div>
   )
 }
@@ -543,7 +542,7 @@ function SetupRow({
         {ok ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
 
         <span className="text-xs font-bold">
-          {ok ? "Ready" : "Next"}
+          {ok ? "Ready" : "Missing"}
         </span>
       </div>
     </div>
@@ -571,26 +570,6 @@ function UsageCard({
 
       <p className="mt-2 text-sm text-slate-400">
         {value}
-      </p>
-    </div>
-  )
-}
-
-function NextStep({
-  title,
-  description,
-}: {
-  title: string
-  description: string
-}) {
-  return (
-    <div className="rounded-2xl bg-slate-800 p-5">
-      <h3 className="font-bold text-white">
-        {title}
-      </h3>
-
-      <p className="mt-2 text-sm leading-relaxed text-slate-400">
-        {description}
       </p>
     </div>
   )
