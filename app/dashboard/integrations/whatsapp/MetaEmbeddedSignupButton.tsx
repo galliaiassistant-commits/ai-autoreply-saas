@@ -47,7 +47,9 @@ function loadFacebookSdk(appId: string) {
       document.getElementById("facebook-jssdk")
 
     if (existingScript) {
-      existingScript.addEventListener("load", () => resolve())
+      existingScript.addEventListener("load", () =>
+        resolve()
+      )
       existingScript.addEventListener("error", reject)
       return
     }
@@ -77,8 +79,11 @@ export default function MetaEmbeddedSignupButton({
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const signupDataRef = useRef<SignupSessionData | null>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const signupDataRef =
+    useRef<SignupSessionData | null>(null)
+
+  const timeoutRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!appId) {
@@ -139,21 +144,19 @@ export default function MetaEmbeddedSignupButton({
           signupDataRef.current = data.data || null
 
           setMessage(
-            "WhatsApp Business App account selected. Finishing authorization..."
+            "WhatsApp Business account selected. Finishing authorization..."
           )
         }
 
         if (data.event === "ERROR") {
-          setError(
+          stopLoadingWithMessage(
             data?.data?.error_message ||
               "Meta returned an embedded signup error."
           )
-          setLoading(false)
         }
 
         if (data.event === "CANCEL") {
-          setError("Meta signup was cancelled.")
-          setLoading(false)
+          stopLoadingWithMessage("Meta signup was cancelled.")
         }
       } catch {
         // Meta sometimes sends non-JSON OAuth messages. Ignore them.
@@ -174,6 +177,16 @@ export default function MetaEmbeddedSignupButton({
       }
     }
   }, [])
+
+  function stopLoadingWithMessage(text: string) {
+    setError(text)
+    setLoading(false)
+
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+  }
 
   async function saveConnection(code: string) {
     const sessionData = signupDataRef.current
@@ -212,13 +225,55 @@ export default function MetaEmbeddedSignupButton({
     return result
   }
 
-  function stopLoadingWithMessage(text: string) {
-    setError(text)
-    setLoading(false)
+  async function handleMetaLoginResponse(response: any) {
+    try {
+      console.log("META LOGIN RESPONSE:", response)
 
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
+
+      if (!response) {
+        stopLoadingWithMessage(
+          "Meta did not return a response."
+        )
+        return
+      }
+
+      if (response.status !== "connected") {
+        stopLoadingWithMessage(
+          "Meta signup was cancelled or not authorized."
+        )
+        return
+      }
+
+      const code = response?.authResponse?.code
+
+      if (!code) {
+        stopLoadingWithMessage(
+          "Meta did not return an authorization code. Check that response_type is set to code in the Meta configuration."
+        )
+        return
+      }
+
+      setMessage("Saving WhatsApp connection...")
+
+      await saveConnection(code)
+
+      setMessage(
+        "WhatsApp connected successfully. Refreshing..."
+      )
+
+      window.location.reload()
+    } catch (error) {
+      console.error("META CONNECT ERROR:", error)
+
+      stopLoadingWithMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not connect WhatsApp."
+      )
     }
   }
 
@@ -238,7 +293,9 @@ export default function MetaEmbeddedSignupButton({
     }
 
     if (!window.FB || !sdkReady) {
-      setError("Meta SDK is not ready yet. Refresh the page and try again.")
+      setError(
+        "Meta SDK is not ready yet. Refresh the page and try again."
+      )
       return
     }
 
@@ -264,56 +321,8 @@ export default function MetaEmbeddedSignupButton({
       }
 
       window.FB.login(
-        async function (response: any) {
-          try {
-            console.log("META LOGIN RESPONSE:", response)
-
-            if (timeoutRef.current) {
-              clearTimeout(timeoutRef.current)
-              timeoutRef.current = null
-            }
-
-            if (!response) {
-              stopLoadingWithMessage(
-                "Meta did not return a response."
-              )
-              return
-            }
-
-            if (response.status !== "connected") {
-              stopLoadingWithMessage(
-                "Meta signup was cancelled or not authorized."
-              )
-              return
-            }
-
-            const code = response?.authResponse?.code
-
-            if (!code) {
-              stopLoadingWithMessage(
-                "Meta did not return an authorization code. Check that response_type is set to code in the Meta configuration."
-              )
-              return
-            }
-
-            setMessage("Saving WhatsApp connection...")
-
-            await saveConnection(code)
-
-            setMessage(
-              "WhatsApp connected successfully. Refreshing..."
-            )
-
-            window.location.reload()
-          } catch (error) {
-            console.error("META CONNECT ERROR:", error)
-
-            stopLoadingWithMessage(
-              error instanceof Error
-                ? error.message
-                : "Could not connect WhatsApp."
-            )
-          }
+        function (response: any) {
+          void handleMetaLoginResponse(response)
         },
         {
           config_id: configId,
