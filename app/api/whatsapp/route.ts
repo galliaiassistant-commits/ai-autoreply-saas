@@ -14,6 +14,27 @@ import {
   getQuickReply,
 } from "@/lib/router"
 
+async function getWhatsAppAccessTokenForBusiness(
+  businessId: string
+) {
+  const { data, error } = await supabase
+    .from("business_integration_secrets")
+    .select("access_token")
+    .eq("business_id", businessId)
+    .eq("provider", "whatsapp")
+    .maybeSingle()
+
+  if (error) {
+    console.error("GET WHATSAPP TOKEN ERROR:", error)
+  }
+
+  return (
+    data?.access_token ||
+    process.env.WHATSAPP_ACCESS_TOKEN ||
+    null
+  )
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
