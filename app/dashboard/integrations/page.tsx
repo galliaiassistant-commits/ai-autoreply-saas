@@ -158,10 +158,17 @@ export default async function IntegrationsPage() {
               </div>
 
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-                Connect a business WhatsApp number to Jhyro AI. This is where
-                customers will use Meta Embedded Signup instead of sending access
-                tokens manually.
-              </p>
+  Connect a business WhatsApp number to Jhyro AI. Since Meta Embedded
+  Signup is paused until business verification, you can use manual setup
+  for now.
+</p>
+
+<Link
+  href="/dashboard/integrations/whatsapp/manual"
+  className="mt-4 inline-flex items-center justify-center rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+>
+  Use manual WhatsApp setup
+</Link>
 
               {whatsappIntegration?.display_phone_number && (
                 <p className="mt-3 text-sm font-semibold text-slate-300">
