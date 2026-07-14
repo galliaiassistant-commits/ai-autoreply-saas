@@ -1,0 +1,8 @@
+C:\Users\Gxlli\ai-autoreply-saas\app\api\chat\route.ts
+C:\Users\Gxlli\ai-autoreply-saas\app\api\integrations\manual\route.ts
+C:\Users\Gxlli\ai-autoreply-saas\app\api\meta\whatsapp\route.ts
+C:\Users\Gxlli\ai-autoreply-saas\app\api\paypal\subscription\route.ts
+C:\Users\Gxlli\ai-autoreply-saas\app\api\stripe\checkout\route.ts
+C:\Users\Gxlli\ai-autoreply-saas\app\api\stripe\webhook\route.ts
+C:\Users\Gxlli\ai-autoreply-saas\app\api\test-ai\route.ts
+C:\Users\Gxlli\ai-autoreply-saas\app\api\whatsapp\route.ts
