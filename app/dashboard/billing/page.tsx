@@ -14,6 +14,7 @@ import {
   CalendarDays,
   Bot,
   Lock,
+  Clock3,
 } from "lucide-react"
 
 export default async function BillingPage() {
@@ -75,9 +76,65 @@ export default async function BillingPage() {
   const paymentProvider =
     business.payment_provider || "none"
 
+  const normalizedStatus =
+    String(subscriptionStatus).toLowerCase()
+
   const isActive =
-    subscriptionStatus === "active" ||
-    subscriptionStatus === "trialing"
+    normalizedStatus === "active" ||
+    normalizedStatus === "trialing"
+
+  const isPaymentDue =
+    normalizedStatus === "payment_due" ||
+    normalizedStatus === "past_due"
+
+  const isStopped =
+    normalizedStatus === "cancelled" ||
+    normalizedStatus === "expired" ||
+    normalizedStatus === "suspended"
+
+  const paymentDueAt = business.payment_due_at || null
+  const billingGraceEndsAt =
+    business.billing_grace_ends_at || null
+  const aiSuspendedAt =
+    business.ai_suspended_at || null
+
+  const graceEndDate = billingGraceEndsAt
+    ? new Date(billingGraceEndsAt)
+    : null
+
+  const graceEndIsValid =
+    Boolean(graceEndDate && !Number.isNaN(graceEndDate.getTime()))
+
+  const graceHasEnded =
+    Boolean(
+      graceEndIsValid &&
+      graceEndDate &&
+      Date.now() >= graceEndDate.getTime()
+    )
+
+  const aiIsSuspended =
+    Boolean(aiSuspendedAt) ||
+    isStopped ||
+    (isPaymentDue && graceHasEnded)
+
+  const millisecondsPerDay = 1000 * 60 * 60 * 24
+
+  const graceDaysRemaining =
+    graceEndIsValid && graceEndDate && !graceHasEnded
+      ? Math.max(
+          1,
+          Math.ceil(
+            (graceEndDate.getTime() - Date.now()) /
+              millisecondsPerDay
+          )
+        )
+      : 0
+
+  const formattedPaymentDueAt =
+    formatBillingDate(paymentDueAt)
+
+  const formattedGraceEndsAt =
+    formatBillingDate(billingGraceEndsAt)
 
   return (
     <div>
@@ -85,6 +142,18 @@ export default async function BillingPage() {
         title="Billing"
         description="Manage plans, subscriptions, invoices, and payment setup."
       />
+
+      {(isPaymentDue || aiIsSuspended) && (
+        <BillingAlert
+          aiIsSuspended={aiIsSuspended}
+          isPaymentDue={isPaymentDue}
+          isStopped={isStopped}
+          paymentDueAt={formattedPaymentDueAt}
+          graceEndsAt={formattedGraceEndsAt}
+          graceDaysRemaining={graceDaysRemaining}
+          status={normalizedStatus}
+        />
+      )}
 
       <section className="mt-6 rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -116,12 +185,16 @@ export default async function BillingPage() {
             <div className="flex items-center gap-3">
               <div
                 className={
-                  isActive
-                    ? "rounded-xl bg-green-500/20 p-3 text-green-400"
-                    : "rounded-xl bg-yellow-500/20 p-3 text-yellow-400"
+                  aiIsSuspended
+                    ? "rounded-xl bg-red-500/20 p-3 text-red-400"
+                    : isActive
+                      ? "rounded-xl bg-green-500/20 p-3 text-green-400"
+                      : "rounded-xl bg-yellow-500/20 p-3 text-yellow-400"
                 }
               >
-                {isActive ? (
+                {aiIsSuspended ? (
+                  <Lock size={22} />
+                ) : isActive ? (
                   <CheckCircle2 size={22} />
                 ) : (
                   <AlertCircle size={22} />
@@ -135,12 +208,16 @@ export default async function BillingPage() {
 
                 <p
                   className={
-                    isActive
-                      ? "font-bold text-green-400"
-                      : "font-bold text-yellow-400"
+                    aiIsSuspended
+                      ? "font-bold capitalize text-red-400"
+                      : isActive
+                        ? "font-bold capitalize text-green-400"
+                        : "font-bold capitalize text-yellow-400"
                   }
                 >
-                  {subscriptionStatus}
+                  {aiIsSuspended
+                    ? "AI replies suspended"
+                    : normalizedStatus.replaceAll("_", " ")}
                 </p>
               </div>
             </div>
@@ -173,7 +250,7 @@ export default async function BillingPage() {
       </div>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_380px]">
-        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+        <section id="plans" className="scroll-mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-6">
           <h2 className="text-xl font-bold text-white">
             Plans
           </h2>
@@ -289,6 +366,32 @@ export default async function BillingPage() {
                 value={paymentProvider}
                 icon={<Lock size={16} />}
               />
+
+              <InfoRow
+                label="Payment Due"
+                value={formattedPaymentDueAt}
+                icon={<AlertCircle size={16} />}
+              />
+
+              <InfoRow
+                label="Grace Period Ends"
+                value={formattedGraceEndsAt}
+                icon={<Clock3 size={16} />}
+              />
+
+              <InfoRow
+                label="AI Replies"
+                value={
+                  aiIsSuspended
+                    ? "Suspended"
+                    : isPaymentDue
+                      ? `${graceDaysRemaining} day${
+                          graceDaysRemaining === 1 ? "" : "s"
+                        } remaining`
+                      : "Enabled"
+                }
+                icon={<Bot size={16} />}
+              />
             </div>
           </section>
 
@@ -325,7 +428,7 @@ export default async function BillingPage() {
             </div>
 
             <p className="mt-5 text-sm leading-relaxed text-slate-500">
-              PayPal subscriptions are connected. Webhooks can be added next to automatically track cancellations and failed payments.
+              PayPal subscriptions and webhook billing updates are connected. Failed payments trigger a 7-day grace period before AI replies are suspended.
             </p>
           </section>
         </aside>
@@ -371,6 +474,126 @@ export default async function BillingPage() {
         </div>
       </section>
     </div>
+  )
+}
+
+
+function formatBillingDate(
+  value: string | null | undefined
+) {
+  if (!value) return "Not set"
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return "Invalid date"
+  }
+
+  return new Intl.DateTimeFormat("en-JM", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/Jamaica",
+  }).format(date)
+}
+
+function BillingAlert({
+  aiIsSuspended,
+  isPaymentDue,
+  isStopped,
+  paymentDueAt,
+  graceEndsAt,
+  graceDaysRemaining,
+  status,
+}: {
+  aiIsSuspended: boolean
+  isPaymentDue: boolean
+  isStopped: boolean
+  paymentDueAt: string
+  graceEndsAt: string
+  graceDaysRemaining: number
+  status: string
+}) {
+  return (
+    <section
+      className={
+        aiIsSuspended
+          ? "mt-6 rounded-2xl border border-red-500/40 bg-red-500/10 p-6"
+          : "mt-6 rounded-2xl border border-yellow-500/40 bg-yellow-500/10 p-6"
+      }
+    >
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex gap-4">
+          <div
+            className={
+              aiIsSuspended
+                ? "h-fit rounded-xl bg-red-500/20 p-3 text-red-400"
+                : "h-fit rounded-xl bg-yellow-500/20 p-3 text-yellow-400"
+            }
+          >
+            {aiIsSuspended ? (
+              <Lock size={24} />
+            ) : (
+              <AlertCircle size={24} />
+            )}
+          </div>
+
+          <div>
+            <h2
+              className={
+                aiIsSuspended
+                  ? "text-xl font-bold text-red-300"
+                  : "text-xl font-bold text-yellow-300"
+              }
+            >
+              {aiIsSuspended
+                ? "AI replies are suspended"
+                : "Payment is due"}
+            </h2>
+
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-300">
+              {aiIsSuspended
+                ? isStopped
+                  ? `Your subscription is ${status.replaceAll("_", " ")}. Choose a PayPal plan below to restore Jhyro AI.`
+                  : "The 7-day payment grace period has ended. Customer messages will still reach Jhyro AI, but automatic WhatsApp replies are paused until PayPal confirms payment."
+                : `PayPal reported a missed or unsuccessful payment. Jhyro AI remains active during the grace period, with ${graceDaysRemaining} day${graceDaysRemaining === 1 ? "" : "s"} remaining.`}
+            </p>
+          </div>
+        </div>
+
+        <Link
+          href="#plans"
+          className={
+            aiIsSuspended
+              ? "inline-flex shrink-0 items-center justify-center rounded-xl bg-red-400 px-5 py-3 font-bold text-slate-950 transition hover:bg-red-300"
+              : "inline-flex shrink-0 items-center justify-center rounded-xl bg-yellow-300 px-5 py-3 font-bold text-slate-950 transition hover:bg-yellow-200"
+          }
+        >
+          Pay with PayPal
+        </Link>
+      </div>
+
+      {isPaymentDue && (
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl bg-slate-950/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Payment due
+            </p>
+            <p className="mt-2 font-semibold text-white">
+              {paymentDueAt}
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-slate-950/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Grace period ends
+            </p>
+            <p className="mt-2 font-semibold text-white">
+              {graceEndsAt}
+            </p>
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 
