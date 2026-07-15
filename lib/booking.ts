@@ -282,6 +282,265 @@ function formatSuggestions(suggestions?: string[]) {
   return ` I have these available times: ${formatted}. Which one works for you?`
 }
 
+type BusinessAvailability = {
+  day_of_week?: string | number | null
+  open_time?: string | null
+  close_time?: string | null
+  is_closed?: boolean | null
+}
+
+type BusinessHoursValidation = {
+  allowed: boolean
+  message?: string
+}
+
+const DAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+]
+
+function normalizeDayOfWeek(value: unknown) {
+  const text = String(value ?? "")
+    .trim()
+    .toLowerCase()
+
+  const numericDays: Record<string, string> = {
+    "0": "sunday",
+    "1": "monday",
+    "2": "tuesday",
+    "3": "wednesday",
+    "4": "thursday",
+    "5": "friday",
+    "6": "saturday",
+  }
+
+  return numericDays[text] || text
+}
+
+function getJamaicaDateParts(value: string) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Jamaica",
+    weekday: "long",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date)
+
+  const getPart = (type: string) =>
+    parts.find((part) => part.type === type)?.value || ""
+
+  const weekday = getPart("weekday")
+  const hour = Number(getPart("hour"))
+  const minute = Number(getPart("minute"))
+
+  if (
+    !weekday ||
+    Number.isNaN(hour) ||
+    Number.isNaN(minute)
+  ) {
+    return null
+  }
+
+  return {
+    weekday,
+    minutesFromMidnight: hour * 60 + minute,
+  }
+}
+
+function timeToMinutes(value?: string | null) {
+  if (!value) return null
+
+  const match = value.match(/^(\d{1,2}):(\d{2})/)
+
+  if (!match) return null
+
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+
+  if (
+    Number.isNaN(hour) ||
+    Number.isNaN(minute)
+  ) {
+    return null
+  }
+
+  return hour * 60 + minute
+}
+
+function formatDatabaseTime(value?: string | null) {
+  const minutes = timeToMinutes(value)
+
+  if (minutes === null) {
+    return value || "an unknown time"
+  }
+
+  const hour24 = Math.floor(minutes / 60)
+  const minute = minutes % 60
+  const suffix = hour24 >= 12 ? "PM" : "AM"
+  const hour12 = hour24 % 12 || 12
+
+  return `${hour12}:${String(minute).padStart(
+    2,
+    "0"
+  )} ${suffix}`
+}
+
+async function validateBookingAgainstBusinessHours({
+  businessId,
+  bookingTime,
+  serviceDurationMinutes,
+}: {
+  businessId: string
+  bookingTime: string
+  serviceDurationMinutes: number
+}): Promise<BusinessHoursValidation> {
+  const jamaicaDate =
+    getJamaicaDateParts(bookingTime)
+
+  if (!jamaicaDate) {
+    return {
+      allowed: false,
+      message:
+        "Sorry, I couldn't understand that booking date and time. Please send it again.",
+    }
+  }
+
+  const { data, error } = await supabase
+    .from("business_availability")
+    .select(
+      "day_of_week, open_time, close_time, is_closed"
+    )
+    .eq("business_id", businessId)
+
+  if (error) {
+    console.error(
+      "BUSINESS HOURS LOOKUP ERROR:",
+      error
+    )
+
+    return {
+      allowed: false,
+      message:
+        "Sorry, I couldn't check the business hours right now. Please try again.",
+    }
+  }
+
+  const availability =
+    (data || []) as BusinessAvailability[]
+
+  if (availability.length === 0) {
+    console.warn(
+      "NO BUSINESS AVAILABILITY FOUND:",
+      businessId
+    )
+
+    return {
+      allowed: false,
+      message:
+        "The business hours have not been set yet, so I can't confirm that appointment time.",
+    }
+  }
+
+  const requestedDay =
+    normalizeDayOfWeek(jamaicaDate.weekday)
+
+  const dayAvailability = availability.find(
+    (day) =>
+      normalizeDayOfWeek(day.day_of_week) ===
+      requestedDay
+  )
+
+  if (!dayAvailability) {
+    return {
+      allowed: false,
+      message: `The business has not set hours for ${jamaicaDate.weekday}, so I can't confirm that appointment.`,
+    }
+  }
+
+  if (dayAvailability.is_closed) {
+    return {
+      allowed: false,
+      message: `Sorry, the business is closed on ${jamaicaDate.weekday}s. Please choose another day.`,
+    }
+  }
+
+  const openMinutes = timeToMinutes(
+    dayAvailability.open_time
+  )
+
+  const closeMinutes = timeToMinutes(
+    dayAvailability.close_time
+  )
+
+  if (
+    openMinutes === null ||
+    closeMinutes === null
+  ) {
+    return {
+      allowed: false,
+      message: `The business hours for ${jamaicaDate.weekday} are incomplete, so I can't confirm that appointment time.`,
+    }
+  }
+
+  const appointmentStartsAt =
+    jamaicaDate.minutesFromMidnight
+
+  const safeDuration = Math.max(
+    1,
+    Number(serviceDurationMinutes) || 30
+  )
+
+  const appointmentEndsAt =
+    appointmentStartsAt + safeDuration
+
+  if (appointmentStartsAt < openMinutes) {
+    return {
+      allowed: false,
+      message: `That time is before opening. The business opens at ${formatDatabaseTime(
+        dayAvailability.open_time
+      )} on ${jamaicaDate.weekday}s.`,
+    }
+  }
+
+  if (appointmentStartsAt >= closeMinutes) {
+    return {
+      allowed: false,
+      message: `That time is after closing. The business is open from ${formatDatabaseTime(
+        dayAvailability.open_time
+      )} to ${formatDatabaseTime(
+        dayAvailability.close_time
+      )} on ${jamaicaDate.weekday}s.`,
+    }
+  }
+
+  if (appointmentEndsAt > closeMinutes) {
+    return {
+      allowed: false,
+      message: `That appointment would finish after closing. Please choose a time that allows the ${safeDuration}-minute service to finish by ${formatDatabaseTime(
+        dayAvailability.close_time
+      )}.`,
+    }
+  }
+
+  return {
+    allowed: true,
+  }
+}
+
 async function saveMissingDetails({
   businessId,
   customerId,
@@ -408,6 +667,31 @@ export async function saveBookingAndGetReply({
     })
 
     return `Great. What date and time would you like for your ${validService.name}?`
+  }
+
+  const serviceDurationMinutes =
+    Number(validService.duration_minutes) || 30
+
+  const hoursValidation =
+    await validateBookingAgainstBusinessHours({
+      businessId,
+      bookingTime,
+      serviceDurationMinutes,
+    })
+
+  if (!hoursValidation.allowed) {
+    await saveMissingDetails({
+      businessId,
+      customerId,
+      openBooking,
+      service: validService.name,
+      bookingTime: null,
+    })
+
+    return (
+      hoursValidation.message ||
+      "That appointment time is outside the business hours. Please choose another time."
+    )
   }
 
   if (openBooking) {
