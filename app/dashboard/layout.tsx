@@ -1,40 +1,28 @@
-"use client"
+import { getCurrentBusiness } from "@/lib/auth"
+import DashboardShell from "./DashboardShell"
 
-import { useState } from "react"
-import { Sidebar } from "@/components/dashboard/Sidebar"
-import { Topbar } from "@/components/dashboard/Topbar"
-import AuthGuard from "@/components/auth/AuthGuard"
-
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const business = await getCurrentBusiness()
+
+  const subscriptionStatus =
+    business?.subscription_status ||
+    business?.billing_status ||
+    "inactive"
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-gray-950 text-white">
-        <Sidebar
-          open={sidebarOpen}
-          setOpen={setSidebarOpen}
-        />
-
-        <div
-          className={`min-h-screen transition-all duration-300 ${
-            sidebarOpen ? "md:ml-72" : "md:ml-0"
-          }`}
-        >
-          <Topbar
-            sidebarOpen={sidebarOpen}
-            setSidebarOpen={setSidebarOpen}
-          />
-
-          <main className="p-6">
-            {children}
-          </main>
-        </div>
-      </div>
-    </AuthGuard>
+    <DashboardShell
+      subscriptionStatus={String(subscriptionStatus)}
+      paymentDueAt={business?.payment_due_at || null}
+      billingGraceEndsAt={
+        business?.billing_grace_ends_at || null
+      }
+      aiSuspendedAt={business?.ai_suspended_at || null}
+    >
+      {children}
+    </DashboardShell>
   )
 }
