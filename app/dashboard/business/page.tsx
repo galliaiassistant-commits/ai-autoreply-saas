@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
+import BusinessHoursEditor from "@/components/business/BusinessHoursEditor"
 import {
   Building2,
   Clock,
@@ -413,46 +414,10 @@ export default async function BusinessPage() {
         </div>
       </section>
 
-      <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-6">
-        <h2 className="text-xl font-bold text-white">
-          Business Hours
-        </h2>
-
-        <p className="mt-1 text-sm text-slate-400">
-          Availability used by the booking scheduler.
-        </p>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {safeAvailability.length > 0 ? (
-            safeAvailability.map((day) => (
-              <div
-                key={day.id}
-                className="rounded-2xl bg-slate-800 p-5"
-              >
-                <p className="font-bold text-white">
-                  {day.day_of_week}
-                </p>
-
-                <p className="mt-2 text-sm text-slate-400">
-                  {day.is_closed
-                    ? "Closed"
-                    : `${day.open_time || "--"} - ${
-                        day.close_time || "--"
-                      }`}
-                </p>
-
-                <p className="mt-2 text-xs text-slate-500">
-                  Slot duration: {day.slot_duration || 30} mins
-                </p>
-              </div>
-            ))
-          ) : (
-            <div className="md:col-span-2 xl:col-span-4">
-              <EmptyPanel message="No business hours added yet." />
-            </div>
-          )}
-        </div>
-      </section>
+      <BusinessHoursEditor
+        businessId={business.id}
+        availability={safeAvailability}
+      />
 
       {(safeBreaks.length > 0 || safeClosures.length > 0) && (
         <section className="mt-8 grid gap-6 lg:grid-cols-2">
