@@ -31,6 +31,25 @@ type DaySchedule = {
   existingId?: string
 }
 
+
+const TIMEZONE_OPTIONS = [
+  { label: "Jamaica", value: "America/Jamaica" },
+  { label: "New York / Eastern Time", value: "America/New_York" },
+  { label: "Chicago / Central Time", value: "America/Chicago" },
+  { label: "Denver / Mountain Time", value: "America/Denver" },
+  { label: "Los Angeles / Pacific Time", value: "America/Los_Angeles" },
+  { label: "Toronto", value: "America/Toronto" },
+  { label: "London", value: "Europe/London" },
+  { label: "Paris", value: "Europe/Paris" },
+  { label: "Lagos", value: "Africa/Lagos" },
+  { label: "Johannesburg", value: "Africa/Johannesburg" },
+  { label: "Dubai", value: "Asia/Dubai" },
+  { label: "India", value: "Asia/Kolkata" },
+  { label: "Singapore", value: "Asia/Singapore" },
+  { label: "Tokyo", value: "Asia/Tokyo" },
+  { label: "Sydney", value: "Australia/Sydney" },
+]
+
 const DAYS = [
   {
     key: "monday",
@@ -121,9 +140,11 @@ function buildInitialSchedule(
 export default function BusinessHoursEditor({
   businessId,
   availability,
+  initialTimezone,
 }: {
   businessId: string
   availability: AvailabilityRow[]
+  initialTimezone: string
 }) {
   const initialSchedule = useMemo(
     () => buildInitialSchedule(availability),
@@ -132,6 +153,10 @@ export default function BusinessHoursEditor({
 
   const [schedule, setSchedule] =
     useState<DaySchedule[]>(initialSchedule)
+
+  const [timezone, setTimezone] = useState(
+    initialTimezone || "America/Jamaica"
+  )
 
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{
@@ -235,6 +260,7 @@ export default function BusinessHoursEditor({
         .from("businesses")
         .update({
           hours: hoursText,
+          timezone,
         })
         .eq("id", businessId)
 
@@ -246,7 +272,7 @@ export default function BusinessHoursEditor({
 
       setMessage({
         type: "success",
-        text: "Business hours saved. Jhyro AI can now use this schedule when replying to customers.",
+        text: "Business hours and timezone saved. Jhyro AI can now use this schedule when replying to customers and validating bookings.",
       })
     } catch (error) {
       console.error(
@@ -325,6 +351,46 @@ export default function BusinessHoursEditor({
           </p>
         </div>
       )}
+
+
+      <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950 p-5">
+        <div className="grid gap-4 lg:grid-cols-[1fr_320px] lg:items-center">
+          <div>
+            <h3 className="font-bold text-white">
+              Business Timezone
+            </h3>
+
+            <p className="mt-1 text-sm text-slate-400">
+              Jhyro AI uses this timezone when interpreting customer booking times,
+              checking business hours, and suggesting available appointments.
+            </p>
+          </div>
+
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Timezone
+            </span>
+
+            <select
+              value={timezone}
+              onChange={(event) => {
+                setTimezone(event.target.value)
+                setMessage(null)
+              }}
+              className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-slate-500"
+            >
+              {TIMEZONE_OPTIONS.map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                >
+                  {option.label} — {option.value}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
 
       <div className="mt-6 space-y-4">
         {schedule.map((day) => (

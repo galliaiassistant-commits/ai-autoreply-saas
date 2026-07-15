@@ -417,6 +417,9 @@ export default async function BusinessPage() {
       <BusinessHoursEditor
         businessId={business.id}
         availability={safeAvailability}
+        initialTimezone={
+          business.timezone || "America/Jamaica"
+        }
       />
 
       {(safeBreaks.length > 0 || safeClosures.length > 0) && (
