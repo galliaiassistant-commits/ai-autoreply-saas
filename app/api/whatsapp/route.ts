@@ -53,6 +53,10 @@ type WebhookBusiness = {
   business_knowledge?: string | null
   knowledge?: string | null
   description?: string | null
+  subscription_status?: string | null
+  payment_due_at?: string | null
+  billing_grace_ends_at?: string | null
+  ai_suspended_at?: string | null
 }
 
 type WhatsAppIntegration = {
@@ -73,6 +77,107 @@ type Customer = {
   business_id: string
   phone_number: string
   name?: string | null
+}
+
+function getBillingLockState(business: WebhookBusiness) {
+  const status =
+    business.subscription_status?.toLowerCase() || null
+
+  if (
+    status === "cancelled" ||
+    status === "expired" ||
+    status === "suspended"
+  ) {
+    return {
+      blocked: true,
+      reason: status,
+      graceEndsAt: business.billing_grace_ends_at || null,
+    }
+  }
+
+  if (
+    status !== "payment_due" &&
+    status !== "past_due"
+  ) {
+    return {
+      blocked: false,
+      reason: null,
+      graceEndsAt: business.billing_grace_ends_at || null,
+    }
+  }
+
+  let graceEndsAt =
+    business.billing_grace_ends_at || null
+
+  if (!graceEndsAt && business.payment_due_at) {
+    const fallbackGraceEnd = new Date(
+      business.payment_due_at
+    )
+
+    if (!Number.isNaN(fallbackGraceEnd.getTime())) {
+      fallbackGraceEnd.setUTCDate(
+        fallbackGraceEnd.getUTCDate() + 7
+      )
+
+      graceEndsAt = fallbackGraceEnd.toISOString()
+    }
+  }
+
+  if (!graceEndsAt) {
+    return {
+      blocked: false,
+      reason: "payment_due_without_grace_date",
+      graceEndsAt: null,
+    }
+  }
+
+  const graceEndTime = new Date(graceEndsAt).getTime()
+
+  if (Number.isNaN(graceEndTime)) {
+    console.error(
+      "INVALID BILLING GRACE END DATE:",
+      graceEndsAt
+    )
+
+    return {
+      blocked: false,
+      reason: "invalid_grace_date",
+      graceEndsAt,
+    }
+  }
+
+  return {
+    blocked: Date.now() >= graceEndTime,
+    reason: "payment_due",
+    graceEndsAt,
+  }
+}
+
+async function markAISuspendedIfNeeded(
+  business: WebhookBusiness
+) {
+  if (business.ai_suspended_at) return
+
+  const suspendedAt = new Date().toISOString()
+
+  const { error } = await supabase
+    .from("businesses")
+    .update({
+      ai_suspended_at: suspendedAt,
+    })
+    .eq("id", business.id)
+    .is("ai_suspended_at", null)
+
+  if (error) {
+    console.error(
+      "MARK AI SUSPENDED ERROR:",
+      error
+    )
+
+    return
+  }
+
+  business.ai_suspended_at = suspendedAt
 }
 
 export async function GET(req: Request) {
@@ -170,6 +275,57 @@ const integration = resolvedBusiness.integration
 
     console.log("BUSINESS ID:", business.id)
 
+    const billingLock =
+      getBillingLockState(business)
+
+    console.log(
+      "BILLING STATUS:",
+      business.subscription_status || "not_set"
+    )
+    console.log(
+      "BILLING GRACE ENDS AT:",
+      billingLock.graceEndsAt
+    )
+    console.log(
+      "AI BILLING BLOCKED:",
+      billingLock.blocked
+    )
+
+    if (billingLock.blocked) {
+      await markAISuspendedIfNeeded(business)
+
+      console.log(
+        "AI REPLY SKIPPED FOR UNPAID BUSINESS:",
+        business.id,
+        billingLock.reason
+      )
+
+      return Response.json({
+        ok: true,
+        ignored: true,
+        reason: "billing_suspended",
+      })
+    }
+
+    const whatsappAccessToken =
+      await getWhatsAppAccessTokenForBusiness(business.id)
+
+    if (!whatsappAccessToken) {
+      console.error(
+        "NO WHATSAPP TOKEN AVAILABLE FOR BUSINESS:",
+        business.id
+      )
+
+      return Response.json(
+        {
+          error: "No WhatsApp token available for business.",
+        },
+        {
+          status: 200,
+        }
+      )
+    }
+
 async function getBusinessServicesText(businessId: string) {
   const { data, error } = await supabase
     .from("business_services")
@@ -220,6 +376,7 @@ async function getBusinessServicesText(businessId: string) {
         to: from,
         message: safeReply,
         integration,
+        accessToken: whatsappAccessToken,
       })
 
       const { error: aiMsgError } = await supabase
@@ -934,12 +1091,15 @@ async function sendReplyToWhatsApp({
   to,
   message,
   integration,
+  accessToken,
 }: {
   to: string
   message: string
   integration: WhatsAppIntegration | null
+  accessToken?: string | null
 }) {
-  const accessToken =
+  const finalAccessToken =
+    accessToken ||
     integration?.access_token ||
     process.env.WHATSAPP_ACCESS_TOKEN
 
@@ -947,25 +1107,28 @@ async function sendReplyToWhatsApp({
     integration?.phone_number_id ||
     process.env.WHATSAPP_PHONE_NUMBER_ID
 
-  if (!accessToken || !phoneNumberId) {
+  if (!finalAccessToken || !phoneNumberId) {
     await sendWhatsAppMessage(to, message)
     return
   }
 
   const graphVersion =
-    process.env.WHATSAPP_GRAPH_VERSION || "v20.0"
+    process.env.WHATSAPP_GRAPH_VERSION ||
+    process.env.META_GRAPH_VERSION ||
+    "v20.0"
 
   const response = await fetch(
     `https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`,
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${finalAccessToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
         to,
+        type: "text",
         text: {
           body: message,
         },
