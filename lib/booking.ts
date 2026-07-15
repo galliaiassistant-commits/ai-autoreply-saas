@@ -1,9 +1,12 @@
 import OpenAI from "openai"
 import { supabaseAdmin as supabase } from "@/lib/supabase/admin"
 import {
+  checkAvailability,
   createScheduledBooking,
   findServiceByName,
 } from "@/lib/scheduler"
+
+import { getBusinessTimezone } from "@/lib/scheduler/timezone"
 
 type BookingStatus =
   | "missing_details"
@@ -128,8 +131,12 @@ export async function extractBooking(
   openai: OpenAI,
   userText: string,
   openBooking: any,
-  isNewBookingRequest: boolean
+  isNewBookingRequest: boolean,
+  businessId: string
 ): Promise<ExtractedBooking> {
+  const businessTimezone =
+    await getBusinessTimezone(businessId)
+
   const bookingExtract = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
@@ -160,9 +167,10 @@ Rules:
 - If customer gives only a new time and the open booking already has a date, keep the existing date but change the time.
 - If customer mentions a day of the week such as Sunday, Monday, Tuesday, etc., include it in requested_day.
 - Use ISO date format for booking_time.
-- The business timezone is America/Jamaica, UTC-05:00.
-- When returning booking_time, always include the timezone offset -05:00.
-- Example: if the customer says tomorrow at 1pm, return YYYY-MM-DDT13:00:00-05:00, not YYYY-MM-DDT13:00:00Z.
+- The business timezone is ${businessTimezone}.
+- Interpret today, tomorrow, weekdays, and relative dates in the business timezone.
+- Return booking_time as local ISO date and time without Z or an offset: YYYY-MM-DDTHH:mm:ss.
+- The server will convert that local business time into UTC safely.
 
 Return shape:
 {
@@ -184,8 +192,8 @@ ${JSON.stringify(isNewBookingRequest ? null : openBooking)}
 Current customer message:
 ${userText}
 
-Today's date and time in Jamaica:
-${getJamaicaNowText()}
+Current date and time in the business timezone (${businessTimezone}):
+${getBusinessNowText(businessTimezone)}
 
 Merge the customer message with the existing booking.
 Preserve existing booking information unless the customer changes it.
@@ -201,8 +209,9 @@ Preserve existing booking information unless the customer changes it.
 
     return {
       ...parsed,
-      booking_time: normalizeJamaicaBookingTime(
-        parsed.booking_time
+      booking_time: normalizeBookingTime(
+        parsed.booking_time,
+        businessTimezone
       ),
     }
   } catch (error) {
@@ -215,9 +224,11 @@ Preserve existing booking information unless the customer changes it.
   }
 }
 
-function getJamaicaNowText() {
+function getBusinessNowText(
+  timeZone: string
+) {
   return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Jamaica",
+    timeZone,
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -235,33 +246,136 @@ function cleanJson(value: string) {
     .trim()
 }
 
-function normalizeJamaicaBookingTime(value?: string | null) {
+function getZonedParts(
+  date: Date,
+  timeZone: string
+) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date)
+
+  const getPart = (type: string) =>
+    parts.find((part) => part.type === type)?.value || ""
+
+  return {
+    year: Number(getPart("year")),
+    month: Number(getPart("month")),
+    day: Number(getPart("day")),
+    hour: Number(getPart("hour")),
+    minute: Number(getPart("minute")),
+    second: Number(getPart("second")),
+  }
+}
+
+function localDateTimeToUtc({
+  year,
+  month,
+  day,
+  hour,
+  minute,
+  second,
+  timeZone,
+}: {
+  year: number
+  month: number
+  day: number
+  hour: number
+  minute: number
+  second: number
+  timeZone: string
+}) {
+  const targetAsUtc = Date.UTC(
+    year,
+    month - 1,
+    day,
+    hour,
+    minute,
+    second
+  )
+
+  let estimate = new Date(targetAsUtc)
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const rendered = getZonedParts(
+      estimate,
+      timeZone
+    )
+
+    const renderedAsUtc = Date.UTC(
+      rendered.year,
+      rendered.month - 1,
+      rendered.day,
+      rendered.hour,
+      rendered.minute,
+      rendered.second
+    )
+
+    const difference =
+      targetAsUtc - renderedAsUtc
+
+    if (difference === 0) {
+      return estimate
+    }
+
+    estimate = new Date(
+      estimate.getTime() + difference
+    )
+  }
+
+  return estimate
+}
+
+function normalizeBookingTime(
+  value: string | null | undefined,
+  timeZone: string
+) {
   if (!value) return null
 
   const cleanValue = value.trim()
 
-  const hasTimezone =
+  if (
     /z$/i.test(cleanValue) ||
     /[+-]\d{2}:\d{2}$/.test(cleanValue)
+  ) {
+    const instant = new Date(cleanValue)
 
-  if (hasTimezone) {
-    return cleanValue
+    return Number.isNaN(instant.getTime())
+      ? null
+      : instant.toISOString()
   }
 
-  const withT = cleanValue.replace(" ", "T")
+  const match = cleanValue
+    .replace(" ", "T")
+    .match(
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/
+    )
 
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(withT)) {
-    return `${withT}:00-05:00`
+  if (!match) {
+    return null
   }
 
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(withT)) {
-    return `${withT}-05:00`
-  }
-
-  return cleanValue
+  return localDateTimeToUtc({
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+    hour: Number(match[4]),
+    minute: Number(match[5]),
+    second: Number(match[6] || "0"),
+    timeZone,
+  }).toISOString()
 }
 
-function formatSuggestions(suggestions?: string[]) {
+function formatSuggestions(
+  suggestions: string[] | undefined,
+  timeZone: string
+) {
   if (!suggestions || suggestions.length === 0) {
     return ""
   }
@@ -274,7 +388,7 @@ function formatSuggestions(suggestions?: string[]) {
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
-        timeZone: "America/Jamaica",
+        timeZone,
       })
     )
     .join(", ")
@@ -282,121 +396,9 @@ function formatSuggestions(suggestions?: string[]) {
   return ` I have these available times: ${formatted}. Which one works for you?`
 }
 
-type BusinessAvailability = {
-  day_of_week?: string | number | null
-  open_time?: string | null
-  close_time?: string | null
-  is_closed?: boolean | null
-}
-
 type BusinessHoursValidation = {
   allowed: boolean
   message?: string
-}
-
-const DAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-]
-
-function normalizeDayOfWeek(value: unknown) {
-  const text = String(value ?? "")
-    .trim()
-    .toLowerCase()
-
-  const numericDays: Record<string, string> = {
-    "0": "sunday",
-    "1": "monday",
-    "2": "tuesday",
-    "3": "wednesday",
-    "4": "thursday",
-    "5": "friday",
-    "6": "saturday",
-  }
-
-  return numericDays[text] || text
-}
-
-function getJamaicaDateParts(value: string) {
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return null
-  }
-
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Jamaica",
-    weekday: "long",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date)
-
-  const getPart = (type: string) =>
-    parts.find((part) => part.type === type)?.value || ""
-
-  const weekday = getPart("weekday")
-  const hour = Number(getPart("hour"))
-  const minute = Number(getPart("minute"))
-
-  if (
-    !weekday ||
-    Number.isNaN(hour) ||
-    Number.isNaN(minute)
-  ) {
-    return null
-  }
-
-  return {
-    weekday,
-    minutesFromMidnight: hour * 60 + minute,
-  }
-}
-
-function timeToMinutes(value?: string | null) {
-  if (!value) return null
-
-  const match = value.match(/^(\d{1,2}):(\d{2})/)
-
-  if (!match) return null
-
-  const hour = Number(match[1])
-  const minute = Number(match[2])
-
-  if (
-    Number.isNaN(hour) ||
-    Number.isNaN(minute)
-  ) {
-    return null
-  }
-
-  return hour * 60 + minute
-}
-
-function formatDatabaseTime(value?: string | null) {
-  const minutes = timeToMinutes(value)
-
-  if (minutes === null) {
-    return value || "an unknown time"
-  }
-
-  const hour24 = Math.floor(minutes / 60)
-  const minute = minutes % 60
-  const suffix = hour24 >= 12 ? "PM" : "AM"
-  const hour12 = hour24 % 12 || 12
-
-  return `${hour12}:${String(minute).padStart(
-    2,
-    "0"
-  )} ${suffix}`
 }
 
 async function validateBookingAgainstBusinessHours({
@@ -408,136 +410,15 @@ async function validateBookingAgainstBusinessHours({
   bookingTime: string
   serviceDurationMinutes: number
 }): Promise<BusinessHoursValidation> {
-  const jamaicaDate =
-    getJamaicaDateParts(bookingTime)
-
-  if (!jamaicaDate) {
-    return {
-      allowed: false,
-      message:
-        "Sorry, I couldn't understand that booking date and time. Please send it again.",
-    }
-  }
-
-  const { data, error } = await supabase
-    .from("business_availability")
-    .select(
-      "day_of_week, open_time, close_time, is_closed"
-    )
-    .eq("business_id", businessId)
-
-  if (error) {
-    console.error(
-      "BUSINESS HOURS LOOKUP ERROR:",
-      error
-    )
-
-    return {
-      allowed: false,
-      message:
-        "Sorry, I couldn't check the business hours right now. Please try again.",
-    }
-  }
-
-  const availability =
-    (data || []) as BusinessAvailability[]
-
-  if (availability.length === 0) {
-    console.warn(
-      "NO BUSINESS AVAILABILITY FOUND:",
-      businessId
-    )
-
-    return {
-      allowed: false,
-      message:
-        "The business hours have not been set yet, so I can't confirm that appointment time.",
-    }
-  }
-
-  const requestedDay =
-    normalizeDayOfWeek(jamaicaDate.weekday)
-
-  const dayAvailability = availability.find(
-    (day) =>
-      normalizeDayOfWeek(day.day_of_week) ===
-      requestedDay
-  )
-
-  if (!dayAvailability) {
-    return {
-      allowed: false,
-      message: `The business has not set hours for ${jamaicaDate.weekday}, so I can't confirm that appointment.`,
-    }
-  }
-
-  if (dayAvailability.is_closed) {
-    return {
-      allowed: false,
-      message: `Sorry, the business is closed on ${jamaicaDate.weekday}s. Please choose another day.`,
-    }
-  }
-
-  const openMinutes = timeToMinutes(
-    dayAvailability.open_time
-  )
-
-  const closeMinutes = timeToMinutes(
-    dayAvailability.close_time
-  )
-
-  if (
-    openMinutes === null ||
-    closeMinutes === null
-  ) {
-    return {
-      allowed: false,
-      message: `The business hours for ${jamaicaDate.weekday} are incomplete, so I can't confirm that appointment time.`,
-    }
-  }
-
-  const appointmentStartsAt =
-    jamaicaDate.minutesFromMidnight
-
-  const safeDuration = Math.max(
-    1,
-    Number(serviceDurationMinutes) || 30
-  )
-
-  const appointmentEndsAt =
-    appointmentStartsAt + safeDuration
-
-  if (appointmentStartsAt < openMinutes) {
-    return {
-      allowed: false,
-      message: `That time is before opening. The business opens at ${formatDatabaseTime(
-        dayAvailability.open_time
-      )} on ${jamaicaDate.weekday}s.`,
-    }
-  }
-
-  if (appointmentStartsAt >= closeMinutes) {
-    return {
-      allowed: false,
-      message: `That time is after closing. The business is open from ${formatDatabaseTime(
-        dayAvailability.open_time
-      )} to ${formatDatabaseTime(
-        dayAvailability.close_time
-      )} on ${jamaicaDate.weekday}s.`,
-    }
-  }
-
-  if (appointmentEndsAt > closeMinutes) {
-    return {
-      allowed: false,
-      message: `That appointment would finish after closing. Please choose a time that allows the ${safeDuration}-minute service to finish by ${formatDatabaseTime(
-        dayAvailability.close_time
-      )}.`,
-    }
-  }
+  const result = await checkAvailability({
+    businessId,
+    bookingTime,
+    durationMinutes: serviceDurationMinutes,
+  })
 
   return {
-    allowed: true,
+    allowed: result.available,
+    message: result.reason,
   }
 }
 
@@ -628,6 +509,30 @@ export async function saveBookingAndGetReply({
     Boolean(bookingTime) &&
     !String(bookingTime).includes("00:00:00")
 
+if (bookingTime && hasRealTime && !service) {
+  const earlyAvailabilityCheck =
+    await checkAvailability({
+      businessId,
+      bookingTime,
+      durationMinutes: 1,
+    })
+
+  if (!earlyAvailabilityCheck.available) {
+    await saveMissingDetails({
+      businessId,
+      customerId,
+      openBooking,
+      service: null,
+      bookingTime: null,
+    })
+
+    return (
+      earlyAvailabilityCheck.reason ||
+      "That date or time is outside the business hours. Please choose another time."
+    )
+  }
+}
+
   if (!service) {
     await saveMissingDetails({
       businessId,
@@ -715,7 +620,13 @@ export async function saveBookingAndGetReply({
   })
 
   if (!result.success) {
-    return `${result.message}${formatSuggestions(result.suggestions)}`
+    const businessTimezone =
+      await getBusinessTimezone(businessId)
+
+    return `${result.message}${formatSuggestions(
+      result.suggestions,
+      businessTimezone
+    )}`
   }
 
   if (openBooking) {

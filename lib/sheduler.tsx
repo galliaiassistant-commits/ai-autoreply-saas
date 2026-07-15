@@ -389,7 +389,7 @@ export async function findServiceByName(
   )
 }
 
-export async function checkBookingAvailability({
+export async function checkAvailability({
   businessId,
   bookingTime,
   durationMinutes = 30,
@@ -796,7 +796,7 @@ export async function findNextAvailableSlots({
       if (slot < fromDate) continue
 
       const result =
-        await checkBookingAvailability({
+        await checkAvailability({
           businessId,
           bookingTime: slot.toISOString(),
           durationMinutes: duration,
@@ -844,7 +844,7 @@ export async function createScheduledBooking({
   )
 
   const availability =
-    await checkBookingAvailability({
+    await checkAvailability({
       businessId,
       bookingTime,
       durationMinutes: duration,

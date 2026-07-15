@@ -1,5 +1,6 @@
 import { supabaseAdmin as supabase } from "@/lib/supabase/admin"
 import { hasBookingConflict } from "./conflicts"
+import { getBusinessTimezone } from "./timezone"
 import {
   AvailabilityCheck,
   AvailabilityRule,
@@ -17,30 +18,42 @@ const dayNames = [
   "Saturday",
 ]
 
-function getDayName(date: Date) {
+function getDayName(
+  date: Date,
+  timeZone: string
+) {
   return date.toLocaleDateString("en-US", {
     weekday: "long",
-    timeZone: "America/Jamaica",
+    timeZone,
   })
 }
 
-function getDayIndex(date: Date) {
-  const dayName = getDayName(date)
+function getDayIndex(
+  date: Date,
+  timeZone: string
+) {
+  const dayName = getDayName(date, timeZone)
   return dayNames.indexOf(dayName)
 }
 
-function getDateOnly(date: Date) {
+function getDateOnly(
+  date: Date,
+  timeZone: string
+) {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Jamaica",
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(date)
 }
 
-function getTimeOnly(date: Date) {
+function getTimeOnly(
+  date: Date,
+  timeZone: string
+) {
   return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Jamaica",
+    timeZone,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -50,6 +63,13 @@ function getTimeOnly(date: Date) {
 function normalizeTime(time: string | null) {
   if (!time) return null
   return time.slice(0, 5)
+}
+
+function timeToMinutes(time: string) {
+  const [hours, minutes] =
+    time.split(":").map(Number)
+
+  return hours * 60 + minutes
 }
 
 function normalizeDay(value: unknown) {
@@ -79,26 +99,24 @@ function dayMatches({
     return true
   }
 
-  // Some systems store Monday as 1 and Sunday as 7
-  const mondayBasedIndex = dayIndex === 0 ? 7 : dayIndex
+  const mondayBasedIndex =
+    dayIndex === 0 ? 7 : dayIndex
 
-  if (stored === String(mondayBasedIndex)) {
-    return true
-  }
-
-  return false
+  return stored === String(mondayBasedIndex)
 }
 
-function isTimeBetween({
-  time,
-  start,
-  end,
+function rangesOverlap({
+  startA,
+  endA,
+  startB,
+  endB,
 }: {
-  time: string
-  start: string
-  end: string
+  startA: number
+  endA: number
+  startB: number
+  endB: number
 }) {
-  return time >= start && time < end
+  return startA < endB && endA > startB
 }
 
 export async function getAvailabilityRule({
@@ -108,8 +126,11 @@ export async function getAvailabilityRule({
   businessId: string
   date: Date
 }) {
-  const dayName = getDayName(date)
-  const dayIndex = getDayIndex(date)
+  const timeZone =
+    await getBusinessTimezone(businessId)
+
+  const dayName = getDayName(date, timeZone)
+  const dayIndex = getDayIndex(date, timeZone)
 
   const { data, error } = await supabase
     .from("business_availability")
@@ -122,11 +143,6 @@ export async function getAvailabilityRule({
     return null
   }
 
-  console.log("AVAILABILITY BUSINESS ID:", businessId)
-  console.log("AVAILABILITY DAY NAME:", dayName)
-  console.log("AVAILABILITY DAY INDEX:", dayIndex)
-  console.log("AVAILABILITY ROWS:", data)
-
   const rule =
     data?.find((item) =>
       dayMatches({
@@ -136,17 +152,17 @@ export async function getAvailabilityRule({
       })
     ) || null
 
-  console.log("MATCHED AVAILABILITY RULE:", rule)
-
   return rule
 }
 
 export async function checkAvailability({
   businessId,
   bookingTime,
+  durationMinutes = 30,
 }: {
   businessId: string
   bookingTime: string
+  durationMinutes?: number
 }): Promise<AvailabilityCheck> {
   const date = new Date(bookingTime)
 
@@ -157,15 +173,18 @@ export async function checkAvailability({
     }
   }
 
-  const dateOnly = getDateOnly(date)
-  const timeOnly = getTimeOnly(date)
-  const dayName = getDayName(date)
-  const dayIndex = getDayIndex(date)
+  const timeZone =
+    await getBusinessTimezone(businessId)
 
-  console.log("CHECK AVAILABILITY TIME:", bookingTime)
-  console.log("CHECK AVAILABILITY DATE:", dateOnly)
-  console.log("CHECK AVAILABILITY DAY:", dayName)
-  console.log("CHECK AVAILABILITY CLOCK:", timeOnly)
+  const dateOnly = getDateOnly(date, timeZone)
+  const timeOnly = getTimeOnly(date, timeZone)
+  const dayName = getDayName(date, timeZone)
+  const dayIndex = getDayIndex(date, timeZone)
+
+  const requestedStart = timeToMinutes(timeOnly)
+  const requestedEnd =
+    requestedStart +
+    Math.max(1, Number(durationMinutes) || 30)
 
   const { data: closure, error: closureError } = await supabase
     .from("business_closures")
@@ -221,12 +240,12 @@ export async function checkAvailability({
     }
   }
 
+  const openMinutes = timeToMinutes(openTime)
+  const closeMinutes = timeToMinutes(closeTime)
+
   if (
-    !isTimeBetween({
-      time: timeOnly,
-      start: openTime,
-      end: closeTime,
-    })
+    requestedStart < openMinutes ||
+    requestedEnd > closeMinutes
   ) {
     return {
       available: false,
@@ -263,10 +282,11 @@ export async function checkAvailability({
 
     if (!sameDay) return false
 
-    return isTimeBetween({
-      time: timeOnly,
-      start,
-      end,
+    return rangesOverlap({
+      startA: requestedStart,
+      endA: requestedEnd,
+      startB: timeToMinutes(start),
+      endB: timeToMinutes(end),
     })
   })
 
@@ -293,5 +313,4 @@ export async function checkAvailability({
 
   return {
     available: true,
-  }
-}
+  }}

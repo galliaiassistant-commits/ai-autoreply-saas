@@ -53,6 +53,7 @@ type WebhookBusiness = {
   business_knowledge?: string | null
   knowledge?: string | null
   description?: string | null
+  timezone?: string | null
   subscription_status?: string | null
   payment_due_at?: string | null
   billing_grace_ends_at?: string | null
@@ -513,7 +514,8 @@ if (detectedName) {
         openai,
         userText,
         openBooking,
-        isNewBookingRequest
+        isNewBookingRequest,
+        business.id
       )
 
       console.log("BOOKING EXTRACTED:", booking)
