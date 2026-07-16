@@ -19,19 +19,37 @@ type GoogleCalendarConnection = {
 type GoogleRefreshResponse = {
   access_token?: string
   expires_in?: number
-  scope?: string
   token_type?: string
   error?: string
   error_description?: string
 }
 
-type GoogleEventResponse = {
-  id?: string
-  htmlLink?: string
+type GoogleApiError = {
   error?: {
     message?: string
   }
 }
+
+type GoogleEventResponse = GoogleApiError & {
+  id?: string
+  htmlLink?: string
+}
+
+type GoogleFreeBusyResponse =
+  GoogleApiError & {
+    calendars?: Record<
+      string,
+      {
+        busy?: Array<{
+          start: string
+          end: string
+        }>
+        errors?: Array<{
+          reason?: string
+        }>
+      }
+    >
+  }
 
 type CreateGoogleCalendarEventInput = {
   businessId: string
@@ -48,6 +66,12 @@ export type GoogleCalendarSyncResult = {
   eventId?: string
   calendarId?: string
   eventLink?: string
+  error?: string
+}
+
+export type GoogleCalendarAvailabilityResult = {
+  connected: boolean
+  available: boolean
   error?: string
 }
 
@@ -94,11 +118,10 @@ function tokenIsStillValid(
     connection.token_expires_at
   ).getTime()
 
-  if (!Number.isFinite(expiresAt)) {
-    return false
-  }
-
-  return expiresAt > Date.now() + 60_000
+  return (
+    Number.isFinite(expiresAt) &&
+    expiresAt > Date.now() + 60_000
+  )
 }
 
 async function refreshAccessToken(
@@ -221,6 +244,45 @@ async function getAccessToken(
   return refreshAccessToken(connection)
 }
 
+async function googleRequest(
+  connection: GoogleCalendarConnection,
+  url: string,
+  init: RequestInit
+) {
+  let accessToken =
+    await getAccessToken(connection)
+
+  let response = await fetch(url, {
+    ...init,
+    headers: {
+      ...init.headers,
+      Authorization:
+        `Bearer ${accessToken}`,
+    },
+    cache: "no-store",
+  })
+
+  if (response.status === 401) {
+    accessToken =
+      await getAccessToken(
+        connection,
+        true
+      )
+
+    response = await fetch(url, {
+      ...init,
+      headers: {
+        ...init.headers,
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+      cache: "no-store",
+    })
+  }
+
+  return response
+}
+
 async function saveBookingSyncError({
   businessId,
   bookingId,
@@ -248,6 +310,155 @@ async function saveBookingSyncError({
   }
 }
 
+export async function checkGoogleCalendarAvailability({
+  businessId,
+  bookingTime,
+  durationMinutes,
+}: {
+  businessId: string
+  bookingTime: string
+  durationMinutes: number
+}): Promise<GoogleCalendarAvailabilityResult> {
+  const connection =
+    await getConnection(businessId)
+
+  if (!connection) {
+    return {
+      connected: false,
+      available: true,
+    }
+  }
+
+  try {
+    const start =
+      new Date(bookingTime)
+
+    if (
+      Number.isNaN(start.getTime())
+    ) {
+      return {
+        connected: true,
+        available: false,
+        error:
+          "The requested Calendar time is invalid.",
+      }
+    }
+
+    const safeDuration =
+      Math.max(
+        1,
+        Number(durationMinutes) || 30
+      )
+
+    const end = new Date(
+      start.getTime() +
+        safeDuration * 60_000
+    )
+
+    const timeZone =
+      await getBusinessTimezone(
+        businessId
+      )
+
+    const calendarId =
+      connection.calendar_id ||
+      "primary"
+
+    const response =
+      await googleRequest(
+        connection,
+        `${GOOGLE_CALENDAR_API}/freeBusy`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            timeMin:
+              start.toISOString(),
+            timeMax:
+              end.toISOString(),
+            timeZone,
+            items: [
+              {
+                id: calendarId,
+              },
+            ],
+          }),
+        }
+      )
+
+    const result =
+      (await response.json()) as GoogleFreeBusyResponse
+
+    if (!response.ok) {
+      const message =
+        result.error?.message ||
+        "Google Calendar availability could not be checked."
+
+      console.error(
+        "GOOGLE CALENDAR FREEBUSY ERROR:",
+        message
+      )
+
+      return {
+        connected: true,
+        available: false,
+        error: message,
+      }
+    }
+
+    const calendarResult =
+      result.calendars?.[calendarId]
+
+    if (
+      calendarResult?.errors &&
+      calendarResult.errors.length > 0
+    ) {
+      const message =
+        calendarResult.errors[0]
+          ?.reason ||
+        "Google Calendar returned an availability error."
+
+      console.error(
+        "GOOGLE CALENDAR FREEBUSY CALENDAR ERROR:",
+        message
+      )
+
+      return {
+        connected: true,
+        available: false,
+        error: message,
+      }
+    }
+
+    const busy =
+      calendarResult?.busy || []
+
+    return {
+      connected: true,
+      available: busy.length === 0,
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unknown Google Calendar availability error."
+
+    console.error(
+      "GOOGLE CALENDAR AVAILABILITY ERROR:",
+      message
+    )
+
+    return {
+      connected: true,
+      available: false,
+      error: message,
+    }
+  }
+}
+
 export async function createGoogleCalendarEvent({
   businessId,
   bookingId,
@@ -267,7 +478,8 @@ export async function createGoogleCalendarEvent({
   }
 
   try {
-    const start = new Date(bookingTime)
+    const start =
+      new Date(bookingTime)
 
     if (
       Number.isNaN(start.getTime())
@@ -278,10 +490,10 @@ export async function createGoogleCalendarEvent({
     }
 
     const safeDuration =
-      Number.isFinite(durationMinutes) &&
-      durationMinutes > 0
-        ? durationMinutes
-        : 30
+      Math.max(
+        1,
+        Number(durationMinutes) || 30
+      )
 
     const end = new Date(
       start.getTime() +
@@ -316,7 +528,7 @@ export async function createGoogleCalendarEvent({
       "Customer"
 
     const description = [
-      `Jhyro AI booking`,
+      "Jhyro AI booking",
       `Service: ${serviceName}`,
       customer?.name
         ? `Customer: ${customer.name}`
@@ -334,7 +546,8 @@ export async function createGoogleCalendarEvent({
         `${serviceName} - ${customerName}`,
       description,
       start: {
-        dateTime: start.toISOString(),
+        dateTime:
+          start.toISOString(),
         timeZone,
       },
       end: {
@@ -361,48 +574,21 @@ export async function createGoogleCalendarEvent({
         calendarId
       )}/events`
 
-    let accessToken =
-      await getAccessToken(connection)
-
-    let response = await fetch(
-      eventUrl,
-      {
-        method: "POST",
-        headers: {
-          Authorization:
-            `Bearer ${accessToken}`,
-          "Content-Type":
-            "application/json",
-        },
-        body: JSON.stringify(eventBody),
-        cache: "no-store",
-      }
-    )
-
-    if (response.status === 401) {
-      accessToken =
-        await getAccessToken(
-          connection,
-          true
-        )
-
-      response = await fetch(
+    const response =
+      await googleRequest(
+        connection,
         eventUrl,
         {
           method: "POST",
           headers: {
-            Authorization:
-              `Bearer ${accessToken}`,
             "Content-Type":
               "application/json",
           },
           body: JSON.stringify(
             eventBody
           ),
-          cache: "no-store",
         }
       )
-    }
 
     const eventData =
       (await response.json()) as GoogleEventResponse
@@ -446,19 +632,20 @@ export async function createGoogleCalendarEvent({
       )
     }
 
-    const { error: connectionUpdateError } =
-      await supabase
-        .from(
-          "google_calendar_connections"
-        )
-        .update({
-          last_synced_at: syncedAt,
-          updated_at: syncedAt,
-        })
-        .eq(
-          "business_id",
-          businessId
-        )
+    const {
+      error: connectionUpdateError,
+    } = await supabase
+      .from(
+        "google_calendar_connections"
+      )
+      .update({
+        last_synced_at: syncedAt,
+        updated_at: syncedAt,
+      })
+      .eq(
+        "business_id",
+        businessId
+      )
 
     if (connectionUpdateError) {
       console.error(

@@ -548,7 +548,17 @@ if (detectedName) {
           userText,
         })
       } else {
-        reply = "Sure, what service would you like to book?"
+        const aiMessages = buildAIMessages({
+          business,
+          customer,
+          memoryText,
+          history: history || [],
+          action: "business_question",
+          openBooking,
+          userText,
+        })
+
+        reply = await generateReply(openai, aiMessages)
       }
     } else {
       const aiMessages = buildAIMessages({
@@ -824,10 +834,9 @@ function detectUserAction(userText: string) {
   }
 
   const hasBookingWord =
-    lowerText.includes("book") ||
-    lowerText.includes("appointment") ||
-    lowerText.includes("schedule") ||
-    lowerText.includes("reserve")
+    /\b(book|booking|appointment|schedule|reserve|reservation)\b/.test(
+      lowerText
+    )
 
   const hasDateWord =
     lowerText.includes("today") ||
@@ -853,6 +862,30 @@ function detectUserAction(userText: string) {
     lowerText.includes("let me get") ||
     lowerText.includes("i would like")
 
+  const asksAboutPrice =
+    /\b(price|prices|cost|costs|rate|rates|charge|charges|fee|fees)\b/.test(
+      lowerText
+    ) || lowerText.includes("how much")
+
+  const asksAboutBusinessInformation =
+    asksAboutPrice ||
+    /\b(location|address|service|services)\b/.test(
+      lowerText
+    )
+
+  const hasSpecificBookingDetails =
+    hasDateWord || hasTimeWord
+
+  if (
+    asksAboutBusinessInformation &&
+    !(
+      hasBookingWord &&
+      hasSpecificBookingDetails
+    )
+  ) {
+    return "business_question"
+  }
+
   if (
     hasBookingWord ||
     (soundsLikeBooking && (hasDateWord || hasTimeWord)) ||
@@ -870,13 +903,7 @@ function detectUserAction(userText: string) {
     return "opening_hours"
   }
 
-  if (
-    lowerText.includes("price") ||
-    lowerText.includes("cost") ||
-    lowerText.includes("location") ||
-    lowerText.includes("address") ||
-    lowerText.includes("service")
-  ) {
+  if (asksAboutBusinessInformation) {
     return "business_question"
   }
 
