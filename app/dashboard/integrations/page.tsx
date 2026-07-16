@@ -38,7 +38,9 @@ type IntegrationsPageProps = {
   }>
 }
 
-function isRealConnected(record: IntegrationRecord) {
+function isRealConnected(
+  record: IntegrationRecord
+) {
   if (record.provider === "whatsapp") {
     return (
       record.connected === true &&
@@ -59,7 +61,9 @@ function normalizeIntegration(
   }
 }
 
-function getGoogleStatusMessage(status?: string) {
+function getGoogleStatusMessage(
+  status?: string
+) {
   switch (status) {
     case "connected":
       return {
@@ -131,9 +135,12 @@ export default async function IntegrationsPage({
       : rawGoogleStatus?.[0]
 
   const googleStatusMessage =
-    getGoogleStatusMessage(googleStatus)
+    getGoogleStatusMessage(
+      googleStatus
+    )
 
-  const business = await getCurrentBusiness()
+  const business =
+    await getCurrentBusiness()
 
   if (!business) {
     return (
@@ -144,37 +151,44 @@ export default async function IntegrationsPage({
         />
 
         <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
-          No business found for this account.
+          No business found for this
+          account.
         </div>
       </div>
     )
   }
 
-  const supabase = await createClient()
+  const supabase =
+    await createClient()
 
-  const { data: integrations, error } =
-    await supabase
-      .from("business_integrations")
-      .select(`
-        id,
-        business_id,
-        provider,
-        connected,
-        phone_number,
-        phone_number_id,
-        business_account_id,
-        display_phone_number,
-        connection_method,
-        verify_token,
-        metadata,
-        created_at,
-        updated_at,
-        last_connected_at,
-        disconnected_at,
-        human_takeover_enabled,
-        human_takeover_until
-      `)
-      .eq("business_id", business.id)
+  const {
+    data: integrations,
+    error,
+  } = await supabase
+    .from("business_integrations")
+    .select(`
+      id,
+      business_id,
+      provider,
+      connected,
+      phone_number,
+      phone_number_id,
+      business_account_id,
+      display_phone_number,
+      connection_method,
+      verify_token,
+      metadata,
+      created_at,
+      updated_at,
+      last_connected_at,
+      disconnected_at,
+      human_takeover_enabled,
+      human_takeover_until
+    `)
+    .eq(
+      "business_id",
+      business.id
+    )
 
   if (error) {
     console.error(
@@ -184,7 +198,9 @@ export default async function IntegrationsPage({
   }
 
   const safeIntegrations =
-    integrations?.map(normalizeIntegration) || []
+    integrations?.map(
+      normalizeIntegration
+    ) || []
 
   const connectedCount =
     safeIntegrations.filter(
@@ -200,14 +216,17 @@ export default async function IntegrationsPage({
   const googleCalendarIntegration =
     safeIntegrations.find(
       (item) =>
-        item.provider === "google_calendar"
+        item.provider ===
+        "google_calendar"
     )
 
   const whatsappConnected =
-    whatsappIntegration?.connected === true
+    whatsappIntegration?.connected ===
+    true
 
   const googleCalendarConnected =
-    googleCalendarIntegration?.connected === true
+    googleCalendarIntegration?.connected ===
+    true
 
   const googleAccountEmail =
     googleCalendarIntegration?.metadata
@@ -241,7 +260,9 @@ export default async function IntegrationsPage({
           )}
 
           <p className="text-sm font-medium">
-            {googleStatusMessage.message}
+            {
+              googleStatusMessage.message
+            }
           </p>
         </div>
       )}
@@ -252,7 +273,10 @@ export default async function IntegrationsPage({
           value={connectedCount}
         />
 
-        <Stat label="Available" value={8} />
+        <Stat
+          label="Available"
+          value={8}
+        />
 
         <Stat
           label="Health"
@@ -268,7 +292,9 @@ export default async function IntegrationsPage({
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-4">
             <div className="rounded-2xl bg-slate-800 p-4 text-slate-300">
-              <MessageCircle size={28} />
+              <MessageCircle
+                size={28}
+              />
             </div>
 
             <div>
@@ -285,9 +311,13 @@ export default async function IntegrationsPage({
                   }
                 >
                   {whatsappConnected ? (
-                    <CheckCircle2 size={14} />
+                    <CheckCircle2
+                      size={14}
+                    />
                   ) : (
-                    <PlugZap size={14} />
+                    <PlugZap
+                      size={14}
+                    />
                   )}
 
                   {whatsappConnected
@@ -297,11 +327,13 @@ export default async function IntegrationsPage({
               </div>
 
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-                Connect a business WhatsApp
-                number to Jhyro AI. Since Meta
-                Embedded Signup is paused until
-                business verification, you can
-                use manual setup for now.
+                Connect a business
+                WhatsApp number to Jhyro
+                AI. Since Meta Embedded
+                Signup is paused until
+                business verification, you
+                can use manual setup for
+                now.
               </p>
 
               <Link
@@ -341,7 +373,9 @@ export default async function IntegrationsPage({
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-4">
             <div className="rounded-2xl bg-blue-500/10 p-4 text-blue-400">
-              <CalendarDays size={28} />
+              <CalendarDays
+                size={28}
+              />
             </div>
 
             <div>
@@ -358,9 +392,13 @@ export default async function IntegrationsPage({
                   }
                 >
                   {googleCalendarConnected ? (
-                    <CheckCircle2 size={14} />
+                    <CheckCircle2
+                      size={14}
+                    />
                   ) : (
-                    <PlugZap size={14} />
+                    <PlugZap
+                      size={14}
+                    />
                   )}
 
                   {googleCalendarConnected
@@ -370,10 +408,10 @@ export default async function IntegrationsPage({
               </div>
 
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-                Sync Jhyro appointments with
-                Google Calendar and prevent
-                bookings during existing busy
-                events.
+                Sync Jhyro appointments
+                with Google Calendar and
+                prevent bookings during
+                existing busy events.
               </p>
 
               {googleAccountEmail && (
@@ -385,13 +423,14 @@ export default async function IntegrationsPage({
 
               {googleCalendarConnected && (
                 <p className="mt-1 text-sm text-slate-500">
-                  Calendar: Primary calendar
+                  Calendar: Primary
+                  calendar
                 </p>
               )}
             </div>
           </div>
 
-          <Link
+          <a
             href="/api/integrations/google-calendar/connect"
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 font-semibold text-white transition hover:bg-blue-400"
           >
@@ -400,7 +439,7 @@ export default async function IntegrationsPage({
               : "Connect Calendar"}
 
             <ArrowRight size={18} />
-          </Link>
+          </a>
         </div>
       </section>
 
