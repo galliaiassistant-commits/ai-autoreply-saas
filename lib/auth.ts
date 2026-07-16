@@ -8,8 +8,21 @@ export async function getCurrentBusiness() {
     error: userError,
   } = await supabase.auth.getUser()
 
-  if (userError || !user) {
-    console.error("GET USER ERROR:", userError)
+  if (userError) {
+    if (
+      userError.name !==
+      "AuthSessionMissingError"
+    ) {
+      console.error(
+        "GET USER ERROR:",
+        userError
+      )
+    }
+
+    return null
+  }
+
+  if (!user) {
     return null
   }
 
@@ -17,13 +30,15 @@ export async function getCurrentBusiness() {
     process.env.DEFAULT_BUSINESS_ID
 
   if (defaultBusinessId) {
-    const { data: defaultBusiness, error: defaultError } =
-      await supabase
-        .from("businesses")
-        .select("*")
-        .eq("id", defaultBusinessId)
-        .eq("owner_id", user.id)
-        .maybeSingle()
+    const {
+      data: defaultBusiness,
+      error: defaultError,
+    } = await supabase
+      .from("businesses")
+      .select("*")
+      .eq("id", defaultBusinessId)
+      .eq("owner_id", user.id)
+      .maybeSingle()
 
     if (defaultError) {
       console.error(
@@ -37,16 +52,23 @@ export async function getCurrentBusiness() {
     }
   }
 
-  const { data: business, error } = await supabase
-    .from("businesses")
-    .select("*")
-    .eq("owner_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const { data: business, error } =
+    await supabase
+      .from("businesses")
+      .select("*")
+      .eq("owner_id", user.id)
+      .order("created_at", {
+        ascending: false,
+      })
+      .limit(1)
+      .maybeSingle()
 
   if (error) {
-    console.error("GET CURRENT BUSINESS ERROR:", error)
+    console.error(
+      "GET CURRENT BUSINESS ERROR:",
+      error
+    )
+
     return null
   }
 

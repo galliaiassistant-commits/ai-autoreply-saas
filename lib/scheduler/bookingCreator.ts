@@ -1,4 +1,5 @@
 import { supabaseAdmin as supabase } from "@/lib/supabase/admin"
+import { createGoogleCalendarEvent } from "@/lib/google-calendar"
 import { checkAvailability } from "./availability"
 import { findNextAvailableSlots } from "./slotGenerator"
 import { findServiceByName } from "./services"
@@ -16,20 +17,21 @@ async function formatBookingTime({
   bookingTime: string
 }) {
   const timeZone =
-    await getBusinessTimezone(businessId)
+    await getBusinessTimezone(
+      businessId
+    )
 
-  return new Date(bookingTime).toLocaleString(
-    "en-US",
-    {
-      timeZone,
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }
-  )
+  return new Date(
+    bookingTime
+  ).toLocaleString("en-US", {
+    timeZone,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
 }
 
 export async function createScheduledBooking({
@@ -38,35 +40,42 @@ export async function createScheduledBooking({
   serviceName,
   bookingTime,
 }: CreateBookingInput): Promise<CreateBookingResult> {
-  const service = await findServiceByName(
-    businessId,
-    serviceName
-  )
+  const service =
+    await findServiceByName(
+      businessId,
+      serviceName
+    )
 
   if (!service) {
     return {
       success: false,
-      message: "Sorry, that service is not available.",
+      message:
+        "Sorry, that service is not available.",
       suggestions: [],
     }
   }
 
   const durationMinutes =
-    Number(service.duration_minutes) || 30
+    Number(
+      service.duration_minutes
+    ) || 30
 
-  const availability = await checkAvailability({
-    businessId,
-    bookingTime,
-    durationMinutes,
-  })
+  const availability =
+    await checkAvailability({
+      businessId,
+      bookingTime,
+      durationMinutes,
+    })
 
   if (!availability.available) {
-    const suggestions = await findNextAvailableSlots({
-      businessId,
-      fromDate: new Date(bookingTime),
-      durationMinutes,
-      limit: 3,
-    })
+    const suggestions =
+      await findNextAvailableSlots({
+        businessId,
+        fromDate:
+          new Date(bookingTime),
+        durationMinutes,
+        limit: 3,
+      })
 
     return {
       success: false,
@@ -77,40 +86,87 @@ export async function createScheduledBooking({
     }
   }
 
-  const { data, error } = await supabase
-    .from("bookings")
-    .insert({
-      business_id: businessId,
-      customer_id: customerId,
-      service: service.name,
-      booking_time: new Date(
-        bookingTime
-      ).toISOString(),
-      status: "booked",
-    })
-    .select()
-    .single()
+  const normalizedBookingTime =
+    new Date(
+      bookingTime
+    ).toISOString()
+
+  const { data, error } =
+    await supabase
+      .from("bookings")
+      .insert({
+        business_id: businessId,
+        customer_id: customerId,
+        service: service.name,
+        booking_time:
+          normalizedBookingTime,
+        status: "booked",
+      })
+      .select()
+      .single()
 
   if (error) {
-    console.error("CREATE SCHEDULED BOOKING ERROR:", error)
+    console.error(
+      "CREATE SCHEDULED BOOKING ERROR:",
+      error
+    )
 
     return {
       success: false,
-      message: "I could not save that booking. Please try again.",
+      message:
+        "I could not save that booking. Please try again.",
       suggestions: [],
     }
+  }
+
+  const calendarSync =
+    await createGoogleCalendarEvent({
+      businessId,
+      bookingId: data.id,
+      customerId,
+      serviceName: service.name,
+      bookingTime:
+        normalizedBookingTime,
+      durationMinutes,
+    })
+
+  if (
+    !calendarSync.synced &&
+    !calendarSync.skipped
+  ) {
+    console.error(
+      "BOOKING SAVED BUT GOOGLE CALENDAR SYNC FAILED:",
+      calendarSync.error
+    )
   }
 
   const formattedTime =
     await formatBookingTime({
       businessId,
-      bookingTime,
+      bookingTime:
+        normalizedBookingTime,
     })
+
+  const savedBooking =
+    calendarSync.eventId
+      ? {
+          ...data,
+          google_calendar_event_id:
+            calendarSync.eventId,
+          google_calendar_id:
+            calendarSync.calendarId,
+          google_calendar_synced_at:
+            new Date().toISOString(),
+          google_calendar_sync_error:
+            null,
+        }
+      : data
 
   return {
     success: true,
-    message: `You're booked for ${service.name} on ${formattedTime}.`,
-    booking: data,
+    message:
+      `You're booked for ${service.name} on ${formattedTime}.`,
+    booking: savedBooking,
     suggestions: [],
   }
 }
