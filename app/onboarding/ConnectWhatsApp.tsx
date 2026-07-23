@@ -124,8 +124,8 @@ export default function ConnectWhatsApp({
         <p className="font-semibold text-white">Webhook Callback URL</p>
 
         <p className="mt-2 break-all text-sm text-slate-400">
-          https://ai-autoreply-saas.vercel.app/api/whatsapp
-        </p>
+  https://jhyroai.com/api/whatsapp
+</p>
 
         <p className="mt-4 text-sm text-slate-500">
           Use this callback URL in Meta Developer Console. Your verify token must match the one you enter here.

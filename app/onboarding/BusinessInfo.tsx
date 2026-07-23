@@ -30,6 +30,7 @@ export default function BusinessInfo({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
+
   useEffect(() => {
     async function loadBusiness() {
       const { data: userData } =
@@ -39,68 +40,132 @@ export default function BusinessInfo({
 
       if (!user) return
 
-      const { data } = await supabase
-        .from("businesses")
-        .select("*")
-        .eq("owner_id", user.id)
-        .maybeSingle()
+
+      const { data } =
+        await supabase
+          .from("businesses")
+          .select("*")
+          .eq(
+            "owner_id",
+            user.id
+          )
+          .maybeSingle()
+
 
       if (data) {
         setBusinessId(data.id)
+
         setBusinessName(
-          data.business_name || ""
+          data.business_name ?? ""
         )
+
         setPhone(
-          data.phone || ""
+          data.phone ?? ""
         )
+
         setAddress(
-          data.address || ""
+          data.address ?? ""
         )
+
         setWebsite(
-          data.website || ""
+          data.website ?? ""
         )
+
         setCategory(
-          data.business_category || ""
+          data.business_category ?? ""
         )
+
         setDescription(
-          data.description || ""
+          data.description ?? ""
         )
       }
     }
 
+
     loadBusiness()
   }, [])
 
+
+
+  const validPhone =
+    /^[+]?[0-9\s\-()]{7,15}$/
+      .test(
+        phone.trim()
+      )
+
+
   const canContinue =
-    businessName.trim() &&
-    phone.trim() &&
-    category.trim() &&
-    description.trim()
+    Boolean(
+      businessName.trim() &&
+      phone.trim() &&
+      validPhone &&
+      category.trim() &&
+      description.trim().length >= 10
+    )
+
+
 
   async function save() {
     setError("")
 
-    if (!canContinue) {
+
+    if (!businessName.trim()) {
       setError(
-        "Please complete all required fields before continuing."
+        "Business name is required."
       )
       return
     }
 
+
+    if (!validPhone) {
+      setError(
+        "Please enter a valid phone number."
+      )
+      return
+    }
+
+
+    if (!category) {
+      setError(
+        "Please select a business category."
+      )
+      return
+    }
+
+
+    if (
+      description.trim().length < 10
+    ) {
+      setError(
+        "Business description must be at least 10 characters."
+      )
+      return
+    }
+
+
     setLoading(true)
+
+
 
     const { data: userData } =
       await supabase.auth.getUser()
 
-    const user = userData.user
+
+    const user =
+      userData.user
+
 
     if (!user) {
       setLoading(false)
+
       setError(
         "You must be signed in."
       )
+
       return
     }
+
+
 
     const payload = {
       business_name:
@@ -125,7 +190,10 @@ export default function BusinessInfo({
         user.id,
     }
 
+
+
     if (businessId) {
+
       const { error } =
         await supabase
           .from("businesses")
@@ -135,12 +203,16 @@ export default function BusinessInfo({
             businessId
           )
 
+
       if (error) {
         setLoading(false)
         setError(error.message)
         return
       }
+
     } else {
+
+
       const { data, error } =
         await supabase
           .from("businesses")
@@ -148,18 +220,27 @@ export default function BusinessInfo({
           .select()
           .single()
 
+
       if (error) {
         setLoading(false)
         setError(error.message)
         return
       }
 
-      setBusinessId(data.id)
+
+      setBusinessId(
+        data.id
+      )
     }
 
+
+
     setLoading(false)
+
     onNext()
   }
+
+
 
   return (
     <section className="rounded-3xl border border-slate-800 bg-slate-900 p-8">
@@ -168,9 +249,12 @@ export default function BusinessInfo({
         Business Information
       </h2>
 
+
       <p className="mt-2 text-slate-400">
         Tell Jhyro AI about your business.
       </p>
+
+
 
       {error && (
         <div className="mt-5 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-300">
@@ -178,48 +262,67 @@ export default function BusinessInfo({
         </div>
       )}
 
+
+
       <div className="mt-8 grid gap-5 md:grid-cols-2">
+
 
         <Input
           label="Business Name *"
           value={businessName}
           setValue={setBusinessName}
           placeholder="Example: Jhyro Barber Shop"
+          disabled={loading}
         />
+
 
         <Input
           label="Phone Number *"
           value={phone}
           setValue={setPhone}
           placeholder="876-000-0000"
+          disabled={loading}
         />
+
+
 
         <label>
           <span className="text-sm text-slate-400">
             Business Category *
           </span>
 
+
           <select
             value={category}
+            disabled={loading}
             onChange={(e) =>
-              setCategory(e.target.value)
+              setCategory(
+                e.target.value
+              )
             }
-            className="mt-2 w-full rounded-xl bg-slate-800 p-3 text-white outline-none"
+            className="mt-2 w-full rounded-xl bg-slate-800 p-3 text-white outline-none disabled:opacity-50"
           >
+
             <option value="">
               Select category
             </option>
 
-            {categories.map((item) => (
-              <option
-                key={item}
-                value={item}
-              >
-                {item}
-              </option>
-            ))}
+
+            {categories.map(
+              (item) => (
+                <option
+                  key={item}
+                  value={item}
+                >
+                  {item}
+                </option>
+              )
+            )}
+
           </select>
+
         </label>
+
 
 
         <Input
@@ -227,7 +330,9 @@ export default function BusinessInfo({
           value={address}
           setValue={setAddress}
           placeholder="May Pen, Clarendon"
+          disabled={loading}
         />
+
 
 
         <Input
@@ -235,9 +340,12 @@ export default function BusinessInfo({
           value={website}
           setValue={setWebsite}
           placeholder="https://example.com"
+          disabled={loading}
         />
 
+
       </div>
+
 
 
       <label className="mt-5 block">
@@ -246,7 +354,9 @@ export default function BusinessInfo({
           Business Description *
         </span>
 
+
         <textarea
+          disabled={loading}
           value={description}
           onChange={(e) =>
             setDescription(
@@ -254,10 +364,12 @@ export default function BusinessInfo({
             )
           }
           placeholder="Describe what your business does..."
-          className="mt-2 min-h-32 w-full rounded-xl bg-slate-800 p-3 text-white outline-none"
+          className="mt-2 min-h-32 w-full rounded-xl bg-slate-800 p-3 text-white outline-none disabled:opacity-50"
         />
 
       </label>
+
+
 
 
       <div className="mt-8 flex justify-end">
@@ -270,18 +382,18 @@ export default function BusinessInfo({
           }
           className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
         >
-          {
-            loading
-              ? "Saving..."
-              : "Continue"
-          }
+          {loading
+            ? "Saving..."
+            : "Continue"}
         </button>
 
       </div>
 
+
     </section>
   )
 }
+
 
 
 function Input({
@@ -289,11 +401,15 @@ function Input({
   value,
   setValue,
   placeholder,
+  disabled,
 }: {
   label: string
   value: string
-  setValue: (value:string)=>void
-  placeholder:string
+  setValue: (
+    value: string
+  ) => void
+  placeholder: string
+  disabled: boolean
 }) {
 
   return (
@@ -303,15 +419,17 @@ function Input({
         {label}
       </span>
 
+
       <input
+        disabled={disabled}
         value={value}
-        onChange={(e)=>
+        onChange={(e) =>
           setValue(
             e.target.value
           )
         }
         placeholder={placeholder}
-        className="mt-2 w-full rounded-xl bg-slate-800 p-3 text-white outline-none"
+        className="mt-2 w-full rounded-xl bg-slate-800 p-3 text-white outline-none disabled:opacity-50"
       />
 
     </label>

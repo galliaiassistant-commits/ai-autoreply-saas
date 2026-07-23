@@ -10,24 +10,18 @@ type ServiceInput = {
   duration: string
 }
 
-const days = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-]
-
-export async function saveBusinessHours({
-  openTime,
-  closeTime,
-  closedSunday,
-}: {
+type BusinessHourInput = {
+  day: string
   openTime: string
   closeTime: string
-  closedSunday: boolean
+  closed: boolean
+}
+
+
+export async function saveBusinessHours({
+  hours,
+}: {
+  hours: BusinessHourInput[]
 }) {
   const business =
     await getCurrentBusiness()
@@ -35,32 +29,33 @@ export async function saveBusinessHours({
   if (!business) {
     return {
       ok: false,
-      error:
-        "Business not found.",
+      error: "Business not found.",
     }
   }
 
-  if (!openTime || !closeTime) {
+
+  if (!hours || hours.length === 0) {
     return {
       ok: false,
-      error:
-        "Enter an opening and closing time.",
+      error: "No business hours provided.",
     }
   }
+
 
   const supabase =
     await createClient()
 
+
+
   const { error: deleteError } =
     await supabase
-      .from(
-        "business_availability"
-      )
+      .from("business_availability")
       .delete()
       .eq(
         "business_id",
         business.id
       )
+
 
   if (deleteError) {
     console.error(
@@ -70,42 +65,44 @@ export async function saveBusinessHours({
 
     return {
       ok: false,
-      error:
-        deleteError.message,
+      error: deleteError.message,
     }
   }
 
-  const rows = days.map(
-    (day) => {
-      const isSundayClosed =
-        day === "Sunday" &&
-        closedSunday
 
-      return {
-        business_id:
-          business.id,
-        day_of_week: day,
-        open_time:
-          isSundayClosed
-            ? null
-            : openTime,
-        close_time:
-          isSundayClosed
-            ? null
-            : closeTime,
-        is_closed:
-          isSundayClosed,
-        slot_duration: 30,
-      }
-    }
-  )
+
+  const rows =
+    hours.map((item) => ({
+      business_id:
+        business.id,
+
+      day_of_week:
+        item.day,
+
+      open_time:
+        item.closed
+          ? null
+          : item.openTime,
+
+      close_time:
+        item.closed
+          ? null
+          : item.closeTime,
+
+      is_closed:
+        item.closed,
+
+      slot_duration: 30,
+    }))
+
+
 
   const { error: insertError } =
     await supabase
-      .from(
-        "business_availability"
-      )
+      .from("business_availability")
       .insert(rows)
+
+
 
   if (insertError) {
     console.error(
@@ -115,15 +112,58 @@ export async function saveBusinessHours({
 
     return {
       ok: false,
-      error:
-        insertError.message,
+      error: insertError.message,
     }
   }
+
+
+
+  const summary =
+    hours
+      .map((item) =>
+        item.closed
+          ? `${item.day}: Closed`
+          : `${item.day}: ${item.openTime} - ${item.closeTime}`
+      )
+      .join("\n")
+
+
+
+  const { error: businessUpdateError } =
+    await supabase
+      .from("businesses")
+      .update({
+        hours: summary,
+      })
+      .eq(
+        "id",
+        business.id
+      )
+
+
+
+  if (businessUpdateError) {
+    console.error(
+      "UPDATE BUSINESS HOURS ERROR:",
+      businessUpdateError
+    )
+
+    return {
+      ok: false,
+      error: businessUpdateError.message,
+    }
+  }
+
+
 
   return {
     ok: true,
   }
 }
+
+
+
+
 
 export async function saveBusinessServices({
   services,
@@ -133,6 +173,7 @@ export async function saveBusinessServices({
   const business =
     await getCurrentBusiness()
 
+
   if (!business) {
     return {
       ok: false,
@@ -141,11 +182,14 @@ export async function saveBusinessServices({
     }
   }
 
+
+
   const canManageServices =
     businessCanUseFeature(
       business,
       "service_management"
     )
+
 
   if (!canManageServices) {
     return {
@@ -155,44 +199,53 @@ export async function saveBusinessServices({
     }
   }
 
-  const cleanServices = services
-    .filter(
-      (service) =>
-        service.name.trim()
-    )
-    .map((service) => {
-      const parsedPrice =
-        service.price
-          ? Number(service.price)
-          : null
 
-      const parsedDuration =
-        Number(
-          service.duration || 30
-        )
 
-      return {
-        business_id: business.id,
-        name:
-          service.name.trim(),
-        price:
-          parsedPrice !== null &&
-          Number.isFinite(
-            parsedPrice
-          ) &&
-          parsedPrice >= 0
-            ? parsedPrice
-            : null,
-        duration_minutes:
-          Number.isFinite(
-            parsedDuration
-          ) &&
-          parsedDuration > 0
-            ? parsedDuration
-            : 30,
-        is_active: true,
-      }
-    })
+  const cleanServices =
+    services
+      .filter(
+        (service) =>
+          service.name.trim()
+      )
+      .map((service) => {
+
+        const parsedPrice =
+          service.price
+            ? Number(service.price)
+            : null
+
+
+        const parsedDuration =
+          Number(
+            service.duration || 30
+          )
+
+
+        return {
+          business_id:
+            business.id,
+
+          name:
+            service.name.trim(),
+
+          price:
+            parsedPrice !== null &&
+            Number.isFinite(parsedPrice) &&
+            parsedPrice >= 0
+              ? parsedPrice
+              : null,
+
+          duration_minutes:
+            Number.isFinite(parsedDuration) &&
+            parsedDuration > 0
+              ? parsedDuration
+              : 30,
+
+          is_active: true,
+        }
+      })
+
+
 
   if (
     cleanServices.length === 0
@@ -204,8 +257,12 @@ export async function saveBusinessServices({
     }
   }
 
+
+
   const supabase =
     await createClient()
+
+
 
   const { error: deleteError } =
     await supabase
@@ -215,6 +272,7 @@ export async function saveBusinessServices({
         "business_id",
         business.id
       )
+
 
   if (deleteError) {
     console.error(
@@ -229,10 +287,16 @@ export async function saveBusinessServices({
     }
   }
 
+
+
   const { error: insertError } =
     await supabase
       .from("business_services")
-      .insert(cleanServices)
+      .insert(
+        cleanServices
+      )
+
+
 
   if (insertError) {
     console.error(
@@ -246,6 +310,8 @@ export async function saveBusinessServices({
         insertError.message,
     }
   }
+
+
 
   return {
     ok: true,
