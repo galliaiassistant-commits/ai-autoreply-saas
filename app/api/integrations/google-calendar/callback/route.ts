@@ -3,6 +3,7 @@ import {
   NextResponse,
 } from "next/server"
 import { getCurrentBusiness } from "@/lib/auth"
+import { businessCanUseFeature } from "@/lib/plans"
 import { supabaseAdmin as supabase } from "@/lib/supabase/admin"
 
 export const runtime = "nodejs"
@@ -77,6 +78,29 @@ export async function GET(
     )
   }
 
+  const business =
+    await getCurrentBusiness()
+
+  if (!business) {
+    return redirectWithStatus(
+      request,
+      "unauthorized"
+    )
+  }
+
+  const canUseGoogleCalendar =
+    businessCanUseFeature(
+      business,
+      "google_calendar"
+    )
+
+  if (!canUseGoogleCalendar) {
+    return redirectWithStatus(
+      request,
+      "upgrade_required"
+    )
+  }
+
   const clientId =
     process.env.GOOGLE_CLIENT_ID
 
@@ -84,8 +108,7 @@ export async function GET(
     process.env.GOOGLE_CLIENT_SECRET
 
   const redirectUri =
-    process.env
-      .GOOGLE_CALENDAR_REDIRECT_URI
+    process.env.GOOGLE_CALENDAR_REDIRECT_URI
 
   if (
     !clientId ||
@@ -99,16 +122,6 @@ export async function GET(
     return redirectWithStatus(
       request,
       "config_error"
-    )
-  }
-
-  const business =
-    await getCurrentBusiness()
-
-  if (!business) {
-    return redirectWithStatus(
-      request,
-      "unauthorized"
     )
   }
 

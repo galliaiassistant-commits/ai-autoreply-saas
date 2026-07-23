@@ -5,7 +5,6 @@ import { PageHeader } from "@/components/dashboard/PageHeader"
 import IntegrationGrid from "@/components/integrations/IntegrationGrid"
 import {
   ArrowRight,
-  CalendarDays,
   CheckCircle2,
   MessageCircle,
   PlugZap,
@@ -34,18 +33,26 @@ type IntegrationRecord = {
 
 type IntegrationsPageProps = {
   searchParams: Promise<{
-    google_calendar?: string | string[]
+    google_calendar?:
+      | string
+      | string[]
   }>
 }
 
 function isRealConnected(
   record: IntegrationRecord
 ) {
-  if (record.provider === "whatsapp") {
+  if (
+    record.provider === "whatsapp"
+  ) {
     return (
       record.connected === true &&
-      Boolean(record.phone_number_id) &&
-      Boolean(record.business_account_id)
+      Boolean(
+        record.phone_number_id
+      ) &&
+      Boolean(
+        record.business_account_id
+      )
     )
   }
 
@@ -57,7 +64,8 @@ function normalizeIntegration(
 ) {
   return {
     ...record,
-    connected: isRealConnected(record),
+    connected:
+      isRealConnected(record),
   }
 }
 
@@ -90,7 +98,7 @@ function getGoogleStatusMessage(
       return {
         success: false,
         message:
-          "Google did not provide long-term access. Please reconnect and approve calendar access.",
+          "Google did not provide long-term access. Please reconnect and approve Calendar access.",
       }
 
     case "unauthorized":
@@ -124,13 +132,15 @@ function getGoogleStatusMessage(
 export default async function IntegrationsPage({
   searchParams,
 }: IntegrationsPageProps) {
-  const params = await searchParams
+  const params =
+    await searchParams
 
   const rawGoogleStatus =
     params.google_calendar
 
   const googleStatus =
-    typeof rawGoogleStatus === "string"
+    typeof rawGoogleStatus ===
+    "string"
       ? rawGoogleStatus
       : rawGoogleStatus?.[0]
 
@@ -210,27 +220,13 @@ export default async function IntegrationsPage({
   const whatsappIntegration =
     safeIntegrations.find(
       (item) =>
-        item.provider === "whatsapp"
-    )
-
-  const googleCalendarIntegration =
-    safeIntegrations.find(
-      (item) =>
         item.provider ===
-        "google_calendar"
+        "whatsapp"
     )
 
   const whatsappConnected =
     whatsappIntegration?.connected ===
     true
-
-  const googleCalendarConnected =
-    googleCalendarIntegration?.connected ===
-    true
-
-  const googleAccountEmail =
-    googleCalendarIntegration?.metadata
-      ?.google_account_email
 
   return (
     <div>
@@ -331,9 +327,9 @@ export default async function IntegrationsPage({
                 WhatsApp number to Jhyro
                 AI. Since Meta Embedded
                 Signup is paused until
-                business verification, you
-                can use manual setup for
-                now.
+                business verification,
+                you can use manual setup
+                for now.
               </p>
 
               <Link
@@ -366,80 +362,6 @@ export default async function IntegrationsPage({
 
             <ArrowRight size={18} />
           </Link>
-        </div>
-      </section>
-
-      <section className="mt-6 rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-6">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="rounded-2xl bg-blue-500/10 p-4 text-blue-400">
-              <CalendarDays
-                size={28}
-              />
-            </div>
-
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-bold text-white">
-                  Google Calendar
-                </h2>
-
-                <span
-                  className={
-                    googleCalendarConnected
-                      ? "inline-flex items-center gap-2 rounded-full bg-green-500/20 px-3 py-1 text-xs font-bold text-green-400"
-                      : "inline-flex items-center gap-2 rounded-full bg-yellow-500/20 px-3 py-1 text-xs font-bold text-yellow-400"
-                  }
-                >
-                  {googleCalendarConnected ? (
-                    <CheckCircle2
-                      size={14}
-                    />
-                  ) : (
-                    <PlugZap
-                      size={14}
-                    />
-                  )}
-
-                  {googleCalendarConnected
-                    ? "Connected"
-                    : "Not connected"}
-                </span>
-              </div>
-
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-                Sync Jhyro appointments
-                with Google Calendar and
-                prevent bookings during
-                existing busy events.
-              </p>
-
-              {googleAccountEmail && (
-                <p className="mt-3 text-sm font-semibold text-slate-300">
-                  Connected account:{" "}
-                  {googleAccountEmail}
-                </p>
-              )}
-
-              {googleCalendarConnected && (
-                <p className="mt-1 text-sm text-slate-500">
-                  Calendar: Primary
-                  calendar
-                </p>
-              )}
-            </div>
-          </div>
-
-          <a
-            href="/api/integrations/google-calendar/connect"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 font-semibold text-white transition hover:bg-blue-400"
-          >
-            {googleCalendarConnected
-              ? "Reconnect Calendar"
-              : "Connect Calendar"}
-
-            <ArrowRight size={18} />
-          </a>
         </div>
       </section>
 

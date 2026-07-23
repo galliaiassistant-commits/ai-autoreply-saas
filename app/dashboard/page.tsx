@@ -2,6 +2,7 @@ import Link from "next/link"
 import type { ReactNode } from "react"
 import { supabase } from "@/lib/supabase"
 import { getCurrentBusiness } from "@/lib/auth"
+import { businessCanUseFeature } from "@/lib/plans"
 import {
   CalendarDays,
   Users,
@@ -11,6 +12,7 @@ import {
   Brain,
   ArrowRight,
   Activity,
+  LockKeyhole,
 } from "lucide-react"
 
 export default async function DashboardPage() {
@@ -39,6 +41,24 @@ export default async function DashboardPage() {
     )
   }
 
+  const canUseBookings =
+    businessCanUseFeature(
+      business,
+      "appointment_bookings"
+    )
+
+  const canManageServices =
+    businessCanUseFeature(
+      business,
+      "service_management"
+    )
+
+  const canUseGoogleCalendar =
+    businessCanUseFeature(
+      business,
+      "google_calendar"
+    )
+
   const [
     { data: customers },
     { data: bookings },
@@ -52,11 +72,16 @@ export default async function DashboardPage() {
       .eq("business_id", business.id)
       .order("created_at", { ascending: false }),
 
-    supabase
-      .from("bookings")
-      .select("*")
-      .eq("business_id", business.id)
-      .order("created_at", { ascending: false }),
+    canUseBookings
+      ? supabase
+          .from("bookings")
+          .select("*")
+          .eq("business_id", business.id)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({
+          data: [],
+          error: null,
+        }),
 
     supabase
       .from("messages")
@@ -64,12 +89,17 @@ export default async function DashboardPage() {
       .eq("business_id", business.id)
       .order("created_at", { ascending: false }),
 
-    supabase
-      .from("business_services")
-      .select("*")
-      .eq("business_id", business.id)
-      .eq("is_active", true)
-      .order("created_at", { ascending: false }),
+    canManageServices
+      ? supabase
+          .from("business_services")
+          .select("*")
+          .eq("business_id", business.id)
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({
+          data: [],
+          error: null,
+        }),
 
     supabase
       .from("business_integrations")
@@ -96,7 +126,13 @@ export default async function DashboardPage() {
   ).length
 
   const connectedIntegrations = safeIntegrations.filter(
-    (integration) => integration.connected
+    (integration) =>
+      integration.connected &&
+      (
+        integration.provider !==
+          "google_calendar" ||
+        canUseGoogleCalendar
+      )
   ).length
 
   const recentBookings = safeBookings.slice(0, 5)
@@ -149,12 +185,19 @@ export default async function DashboardPage() {
           href="/dashboard/customers"
         />
 
-        <StatCard
-          title="Bookings"
-          value={safeBookings.length}
-          icon={<CalendarDays size={20} />}
-          href="/dashboard/bookings"
-        />
+        {canUseBookings ? (
+          <StatCard
+            title="Bookings"
+            value={safeBookings.length}
+            icon={<CalendarDays size={20} />}
+            href="/dashboard/bookings"
+          />
+        ) : (
+          <LockedCard
+            title="Bookings"
+            icon={<CalendarDays size={20} />}
+          />
+        )}
 
         <StatCard
           title="Messages"
@@ -171,6 +214,7 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {canUseBookings ? (
       <div className="mt-6 grid gap-6 md:grid-cols-3">
         <MiniStat
           title="Booked"
@@ -190,8 +234,15 @@ export default async function DashboardPage() {
           icon={<AlertCircle size={18} />}
         />
       </div>
+      ) : (
+        <UpgradePanel
+          title="Appointment insights"
+          message="Booking totals and appointment activity are available on the Pro and Business plans."
+        />
+      )}
 
       <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_380px]">
+        {canUseBookings ? (
         <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
           <SectionHeader
             title="Recent Bookings"
@@ -229,6 +280,13 @@ export default async function DashboardPage() {
             )}
           </div>
         </section>
+        ) : (
+          <UpgradePanel
+            title="Recent bookings"
+            message="Upgrade to Pro to view and manage appointments from your dashboard."
+            compact
+          />
+        )}
 
         <aside className="space-y-6">
           <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
@@ -260,6 +318,7 @@ export default async function DashboardPage() {
             </div>
           </section>
 
+          {canManageServices ? (
           <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
             <SectionHeader
               title="Active Services"
@@ -288,6 +347,13 @@ export default async function DashboardPage() {
               )}
             </div>
           </section>
+          ) : (
+            <UpgradePanel
+              title="Active services"
+              message="Service Management is available on the Pro and Business plans."
+              compact
+            />
+          )}
         </aside>
       </div>
 
@@ -429,5 +495,77 @@ function EmptyState({ message }: { message: string }) {
     <div className="rounded-xl border border-dashed border-slate-700 p-8 text-center text-slate-400">
       {message}
     </div>
+  )
+}
+
+function LockedCard({
+  title,
+  icon,
+}: {
+  title: string
+  icon: ReactNode
+}) {
+  return (
+    <Link
+      href="/dashboard/billing"
+      className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-6 transition hover:border-cyan-400/40"
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-cyan-100">
+          {title}
+        </p>
+
+        <div className="text-cyan-300">
+          {icon}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 text-sm font-bold text-cyan-300">
+        <LockKeyhole size={17} />
+        Pro feature
+      </div>
+    </Link>
+  )
+}
+
+function UpgradePanel({
+  title,
+  message,
+  compact = false,
+}: {
+  title: string
+  message: string
+  compact?: boolean
+}) {
+  return (
+    <section
+      className={`rounded-2xl border border-cyan-500/20 bg-cyan-500/10 ${
+        compact ? "p-6" : "mt-6 p-6"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <LockKeyhole
+          size={20}
+          className="mt-0.5 shrink-0 text-cyan-300"
+        />
+
+        <div>
+          <h2 className="font-bold text-white">
+            {title}
+          </h2>
+
+          <p className="mt-2 text-sm leading-relaxed text-slate-300">
+            {message}
+          </p>
+
+          <Link
+            href="/dashboard/billing"
+            className="mt-4 inline-flex text-sm font-bold text-cyan-300 transition hover:text-cyan-200"
+          >
+            Upgrade to Pro
+          </Link>
+        </div>
+      </div>
+    </section>
   )
 }

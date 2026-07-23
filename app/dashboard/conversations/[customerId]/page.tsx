@@ -2,6 +2,7 @@ import Link from "next/link"
 import type { ReactNode } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
+import { businessCanUseFeature } from "@/lib/plans"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import {
   ArrowLeft,
@@ -11,6 +12,7 @@ import {
   MessageCircle,
   CalendarDays,
   Brain,
+  LockKeyhole,
 } from "lucide-react"
 
 type PageProps = {
@@ -38,6 +40,18 @@ export default async function ConversationDetailPage({
       </PageShell>
     )
   }
+
+  const canUseBookings =
+    businessCanUseFeature(
+      business,
+      "appointment_bookings"
+    )
+
+  const canUseCustomerMemory =
+    businessCanUseFeature(
+      business,
+      "customer_memory"
+    )
 
   const { data: customer } = await supabase
     .from("customers")
@@ -74,18 +88,28 @@ export default async function ConversationDetailPage({
         .eq("customer_id", customer.id)
         .order("created_at", { ascending: true }),
 
-      supabase
-        .from("bookings")
-        .select("*")
-        .eq("business_id", business.id)
-        .eq("customer_id", customer.id)
-        .order("created_at", { ascending: false }),
+      canUseBookings
+        ? supabase
+            .from("bookings")
+            .select("*")
+            .eq("business_id", business.id)
+            .eq("customer_id", customer.id)
+            .order("created_at", { ascending: false })
+        : Promise.resolve({
+            data: [],
+            error: null,
+          }),
 
-      supabase
-        .from("customer_memory")
-        .select("*")
-        .eq("customer_id", customer.id)
-        .order("created_at", { ascending: false }),
+      canUseCustomerMemory
+        ? supabase
+            .from("customer_memory")
+            .select("*")
+            .eq("customer_id", customer.id)
+            .order("created_at", { ascending: false })
+        : Promise.resolve({
+            data: [],
+            error: null,
+          }),
     ])
 
   const safeMessages = messages || []
@@ -114,7 +138,7 @@ export default async function ConversationDetailPage({
 
       <PageHeader
         title={customer.name || "Unknown Customer"}
-        description="View this customer’s full conversation, bookings, and memory."
+        description="View this customer’s conversation and profile details."
       />
 
       <div className="mt-6 grid gap-6 md:grid-cols-3">
@@ -174,9 +198,15 @@ export default async function ConversationDetailPage({
         <aside className="space-y-6">
           <ProfilePanel customer={customer} />
 
-          <BookingsPanel bookings={safeBookings} />
+          <BookingsPanel
+            bookings={safeBookings}
+            hasAccess={canUseBookings}
+          />
 
-          <MemoryPanel memories={safeMemories} />
+          <MemoryPanel
+            memories={safeMemories}
+            hasAccess={canUseCustomerMemory}
+          />
         </aside>
       </div>
     </PageShell>
@@ -255,7 +285,13 @@ function ProfilePanel({ customer }: { customer: any }) {
   )
 }
 
-function BookingsPanel({ bookings }: { bookings: any[] }) {
+function BookingsPanel({
+  bookings,
+  hasAccess,
+}: {
+  bookings: any[]
+  hasAccess: boolean
+}) {
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
       <div className="flex items-center gap-2">
@@ -266,6 +302,11 @@ function BookingsPanel({ bookings }: { bookings: any[] }) {
         </h2>
       </div>
 
+      {!hasAccess ? (
+        <UpgradePanel
+          message="Customer bookings are available on the Pro and Business plans."
+        />
+      ) : (
       <div className="mt-5 space-y-3">
         {bookings.length > 0 ? (
           bookings.slice(0, 5).map((booking) => (
@@ -294,11 +335,18 @@ function BookingsPanel({ bookings }: { bookings: any[] }) {
           </p>
         )}
       </div>
+      )}
     </section>
   )
 }
 
-function MemoryPanel({ memories }: { memories: any[] }) {
+function MemoryPanel({
+  memories,
+  hasAccess,
+}: {
+  memories: any[]
+  hasAccess: boolean
+}) {
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
       <div className="flex items-center gap-2">
@@ -309,6 +357,11 @@ function MemoryPanel({ memories }: { memories: any[] }) {
         </h2>
       </div>
 
+      {!hasAccess ? (
+        <UpgradePanel
+          message="Customer memory is available on the Pro and Business plans."
+        />
+      ) : (
       <div className="mt-5 space-y-3">
         {memories.length > 0 ? (
           memories.slice(0, 5).map((memory) => (
@@ -331,7 +384,38 @@ function MemoryPanel({ memories }: { memories: any[] }) {
           </p>
         )}
       </div>
+      )}
     </section>
+  )
+}
+
+function UpgradePanel({
+  message,
+}: {
+  message: string
+}) {
+  return (
+    <div className="mt-5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+      <div className="flex items-start gap-3">
+        <LockKeyhole
+          size={18}
+          className="mt-0.5 shrink-0 text-cyan-300"
+        />
+
+        <div>
+          <p className="text-sm leading-relaxed text-cyan-100">
+            {message}
+          </p>
+
+          <Link
+            href="/dashboard/billing"
+            className="mt-3 inline-flex text-sm font-bold text-cyan-300 transition hover:text-cyan-200"
+          >
+            Upgrade to Pro
+          </Link>
+        </div>
+      </div>
+    </div>
   )
 }
 

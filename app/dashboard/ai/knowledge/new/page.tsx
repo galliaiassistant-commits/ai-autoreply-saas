@@ -2,8 +2,13 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
+import { businessCanUseFeature } from "@/lib/plans"
 import { PageHeader } from "@/components/dashboard/PageHeader"
-import { ArrowLeft, Brain, Save } from "lucide-react"
+import {
+  ArrowLeft,
+  Brain,
+  Save,
+} from "lucide-react"
 
 type PageProps = {
   searchParams?: Promise<{
@@ -14,46 +19,98 @@ type PageProps = {
 export default async function NewKnowledgePage({
   searchParams,
 }: PageProps) {
-  const business = await getCurrentBusiness()
-  const params = await searchParams
-  const error = params?.error
+  const business =
+    await getCurrentBusiness()
+
+  const params =
+    await searchParams
+
+  const error =
+    params?.error
 
   if (!business) {
     redirect("/auth/sign-in")
   }
 
-  async function createKnowledge(formData: FormData) {
+  const canUseBusinessKnowledge =
+    businessCanUseFeature(
+      business,
+      "business_knowledge"
+    )
+
+  if (!canUseBusinessKnowledge) {
+    redirect(
+      "/dashboard/ai/knowledge"
+    )
+  }
+
+  async function createKnowledge(
+    formData: FormData
+  ) {
     "use server"
 
-    const business = await getCurrentBusiness()
+    const currentBusiness =
+      await getCurrentBusiness()
 
-    if (!business) {
+    if (!currentBusiness) {
       redirect("/auth/sign-in")
     }
 
-    const supabase = await createClient()
+    const canCreateKnowledge =
+      businessCanUseFeature(
+        currentBusiness,
+        "business_knowledge"
+      )
 
-    const question = String(formData.get("question") || "").trim()
-    const answer = String(formData.get("answer") || "").trim()
+    if (!canCreateKnowledge) {
+      redirect(
+        "/dashboard/ai/knowledge"
+      )
+    }
+
+    const supabase =
+      await createClient()
+
+    const question = String(
+      formData.get("question") || ""
+    ).trim()
+
+    const answer = String(
+      formData.get("answer") || ""
+    ).trim()
 
     if (!question || !answer) {
-      redirect("/dashboard/ai/knowledge/new?error=missing")
+      redirect(
+        "/dashboard/ai/knowledge/new?error=missing"
+      )
     }
 
-    const { error } = await supabase
-      .from("business_knowledge")
-      .insert({
-        business_id: business.id,
-        question,
-        answer,
-      })
+    const { error } =
+      await supabase
+        .from(
+          "business_knowledge"
+        )
+        .insert({
+          business_id:
+            currentBusiness.id,
+          question,
+          answer,
+        })
 
     if (error) {
-      console.error("CREATE KNOWLEDGE ERROR:", error.message)
-      redirect("/dashboard/ai/knowledge/new?error=save")
+      console.error(
+        "CREATE KNOWLEDGE ERROR:",
+        error.message
+      )
+
+      redirect(
+        "/dashboard/ai/knowledge/new?error=save"
+      )
     }
 
-    redirect("/dashboard/ai/knowledge")
+    redirect(
+      "/dashboard/ai/knowledge"
+    )
   }
 
   return (
@@ -85,9 +142,11 @@ export default async function NewKnowledgePage({
             </h1>
 
             <p className="mt-1 text-sm text-slate-400">
-              This will be saved only for{" "}
+              This will be saved only
+              for{" "}
               <span className="font-semibold text-white">
-                {business.business_name || "this business"}
+                {business.business_name ||
+                  "this business"}
               </span>
               .
             </p>
@@ -136,7 +195,9 @@ export default async function NewKnowledgePage({
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
-            Jhyro AI will use this when customers ask related questions.
+            Jhyro AI will use this when
+            customers ask related
+            questions.
           </p>
 
           <button

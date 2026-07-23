@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto"
 import { NextResponse } from "next/server"
 import { getCurrentBusiness } from "@/lib/auth"
+import { businessCanUseFeature } from "@/lib/plans"
 
 export const runtime = "nodejs"
 
@@ -20,15 +21,23 @@ const GOOGLE_SCOPES = [
 ]
 
 export async function GET() {
-  const business =
-    await getCurrentBusiness()
+  const business = await getCurrentBusiness()
 
   if (!business) {
-    return NextResponse.redirect(
-      new URL(
-        "/dashboard/integrations?google_calendar=unauthorized",
-        getAppUrl()
-      )
+    return redirectToIntegrations(
+      "unauthorized"
+    )
+  }
+
+  const canUseGoogleCalendar =
+    businessCanUseFeature(
+      business,
+      "google_calendar"
+    )
+
+  if (!canUseGoogleCalendar) {
+    return redirectToIntegrations(
+      "upgrade_required"
     )
   }
 
@@ -36,19 +45,15 @@ export async function GET() {
     process.env.GOOGLE_CLIENT_ID
 
   const redirectUri =
-    process.env
-      .GOOGLE_CALENDAR_REDIRECT_URI
+    process.env.GOOGLE_CALENDAR_REDIRECT_URI
 
   if (!clientId || !redirectUri) {
     console.error(
       "GOOGLE CALENDAR OAUTH ERROR: Missing Google OAuth environment variables"
     )
 
-    return NextResponse.redirect(
-      new URL(
-        "/dashboard/integrations?google_calendar=config_error",
-        getAppUrl()
-      )
+    return redirectToIntegrations(
+      "config_error"
     )
   }
 
@@ -119,6 +124,22 @@ export async function GET() {
   )
 
   return response
+}
+
+function redirectToIntegrations(
+  result: string
+) {
+  const url = new URL(
+    "/dashboard/integrations",
+    getAppUrl()
+  )
+
+  url.searchParams.set(
+    "google_calendar",
+    result
+  )
+
+  return NextResponse.redirect(url)
 }
 
 function getAppUrl() {

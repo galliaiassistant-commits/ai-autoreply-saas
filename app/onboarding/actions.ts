@@ -1,6 +1,7 @@
 "use server"
 
 import { getCurrentBusiness } from "@/lib/auth"
+import { businessCanUseFeature } from "@/lib/plans"
 import { createClient } from "@/lib/supabase/server"
 
 type ServiceInput = {
@@ -28,55 +29,94 @@ export async function saveBusinessHours({
   closeTime: string
   closedSunday: boolean
 }) {
-  const business = await getCurrentBusiness()
+  const business =
+    await getCurrentBusiness()
 
   if (!business) {
     return {
       ok: false,
-      error: "Business not found.",
+      error:
+        "Business not found.",
     }
   }
 
-  const supabase = await createClient()
+  if (!openTime || !closeTime) {
+    return {
+      ok: false,
+      error:
+        "Enter an opening and closing time.",
+    }
+  }
 
-  const { error: deleteError } = await supabase
-    .from("business_availability")
-    .delete()
-    .eq("business_id", business.id)
+  const supabase =
+    await createClient()
+
+  const { error: deleteError } =
+    await supabase
+      .from(
+        "business_availability"
+      )
+      .delete()
+      .eq(
+        "business_id",
+        business.id
+      )
 
   if (deleteError) {
-    console.error("DELETE HOURS ERROR:", deleteError)
+    console.error(
+      "DELETE HOURS ERROR:",
+      deleteError
+    )
 
     return {
       ok: false,
-      error: deleteError.message,
+      error:
+        deleteError.message,
     }
   }
 
-  const rows = days.map((day) => {
-    const isSundayClosed =
-      day === "Sunday" && closedSunday
+  const rows = days.map(
+    (day) => {
+      const isSundayClosed =
+        day === "Sunday" &&
+        closedSunday
 
-    return {
-      business_id: business.id,
-      day_of_week: day,
-      open_time: isSundayClosed ? null : openTime,
-      close_time: isSundayClosed ? null : closeTime,
-      is_closed: isSundayClosed,
-      slot_duration: 30,
+      return {
+        business_id:
+          business.id,
+        day_of_week: day,
+        open_time:
+          isSundayClosed
+            ? null
+            : openTime,
+        close_time:
+          isSundayClosed
+            ? null
+            : closeTime,
+        is_closed:
+          isSundayClosed,
+        slot_duration: 30,
+      }
     }
-  })
+  )
 
-  const { error: insertError } = await supabase
-    .from("business_availability")
-    .insert(rows)
+  const { error: insertError } =
+    await supabase
+      .from(
+        "business_availability"
+      )
+      .insert(rows)
 
   if (insertError) {
-    console.error("INSERT HOURS ERROR:", insertError)
+    console.error(
+      "INSERT HOURS ERROR:",
+      insertError
+    )
 
     return {
       ok: false,
-      error: insertError.message,
+      error:
+        insertError.message,
     }
   }
 
@@ -90,58 +130,120 @@ export async function saveBusinessServices({
 }: {
   services: ServiceInput[]
 }) {
-  const business = await getCurrentBusiness()
+  const business =
+    await getCurrentBusiness()
 
   if (!business) {
     return {
       ok: false,
-      error: "Business not found.",
+      error:
+        "Business not found.",
     }
   }
 
-  const supabase = await createClient()
+  const canManageServices =
+    businessCanUseFeature(
+      business,
+      "service_management"
+    )
+
+  if (!canManageServices) {
+    return {
+      ok: false,
+      error:
+        "Service Management requires the Pro or Business plan.",
+    }
+  }
 
   const cleanServices = services
-    .filter((service) => service.name.trim())
-    .map((service) => ({
-      business_id: business.id,
-      name: service.name.trim(),
-      price: service.price ? Number(service.price) : null,
-      duration_minutes: Number(service.duration || 30),
-      is_active: true,
-    }))
+    .filter(
+      (service) =>
+        service.name.trim()
+    )
+    .map((service) => {
+      const parsedPrice =
+        service.price
+          ? Number(service.price)
+          : null
 
-  if (cleanServices.length === 0) {
+      const parsedDuration =
+        Number(
+          service.duration || 30
+        )
+
+      return {
+        business_id: business.id,
+        name:
+          service.name.trim(),
+        price:
+          parsedPrice !== null &&
+          Number.isFinite(
+            parsedPrice
+          ) &&
+          parsedPrice >= 0
+            ? parsedPrice
+            : null,
+        duration_minutes:
+          Number.isFinite(
+            parsedDuration
+          ) &&
+          parsedDuration > 0
+            ? parsedDuration
+            : 30,
+        is_active: true,
+      }
+    })
+
+  if (
+    cleanServices.length === 0
+  ) {
     return {
       ok: false,
-      error: "Add at least one service.",
+      error:
+        "Add at least one service.",
     }
   }
 
-  const { error: deleteError } = await supabase
-    .from("business_services")
-    .delete()
-    .eq("business_id", business.id)
+  const supabase =
+    await createClient()
+
+  const { error: deleteError } =
+    await supabase
+      .from("business_services")
+      .delete()
+      .eq(
+        "business_id",
+        business.id
+      )
 
   if (deleteError) {
-    console.error("DELETE SERVICES ERROR:", deleteError)
+    console.error(
+      "DELETE SERVICES ERROR:",
+      deleteError
+    )
 
     return {
       ok: false,
-      error: deleteError.message,
+      error:
+        deleteError.message,
     }
   }
 
-  const { error: insertError } = await supabase
-    .from("business_services")
-    .insert(cleanServices)
+  const { error: insertError } =
+    await supabase
+      .from("business_services")
+      .insert(cleanServices)
 
   if (insertError) {
-    console.error("INSERT SERVICES ERROR:", insertError)
+    console.error(
+      "INSERT SERVICES ERROR:",
+      insertError
+    )
 
     return {
       ok: false,
-      error: insertError.message,
+      error:
+        insertError.message,
     }
   }
 

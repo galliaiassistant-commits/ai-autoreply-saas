@@ -1,7 +1,8 @@
 import Link from "next/link"
 import type { ReactNode } from "react"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
+import { businessCanUseFeature } from "@/lib/plans"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import {
   Settings,
@@ -16,10 +17,14 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertCircle,
+  LockKeyhole,
 } from "lucide-react"
 
 export default async function SettingsPage() {
   const business = await getCurrentBusiness()
+
+  const supabase =
+    await createClient()
 
   const {
     data: { user },
@@ -45,18 +50,41 @@ export default async function SettingsPage() {
     )
   }
 
+  const canManageServices =
+    businessCanUseFeature(
+      business,
+      "service_management"
+    )
+
+  const canUseGoogleCalendar =
+    businessCanUseFeature(
+      business,
+      "google_calendar"
+    )
+
   const { data: integrations } = await supabase
     .from("business_integrations")
     .select("*")
     .eq("business_id", business.id)
 
-  const { data: services } = await supabase
-    .from("business_services")
-    .select("*")
-    .eq("business_id", business.id)
+  const { data: services } =
+    canManageServices
+      ? await supabase
+          .from("business_services")
+          .select("*")
+          .eq("business_id", business.id)
+      : { data: [] }
 
   const connectedIntegrations =
-    integrations?.filter((item) => item.connected).length || 0
+    integrations?.filter(
+      (item) =>
+        item.connected &&
+        (
+          item.provider !==
+            "google_calendar" ||
+          canUseGoogleCalendar
+        )
+    ).length || 0
 
   const activeServices =
     services?.filter((service) => service.is_active !== false).length || 0
@@ -117,11 +145,18 @@ export default async function SettingsPage() {
       </section>
 
       <div className="mt-6 grid gap-6 md:grid-cols-3">
-        <StatCard
-          title="Active Services"
-          value={activeServices}
-          icon={<Bot size={20} />}
-        />
+        {canManageServices ? (
+          <StatCard
+            title="Active Services"
+            value={activeServices}
+            icon={<Bot size={20} />}
+          />
+        ) : (
+          <LockedStatCard
+            title="Active Services"
+            icon={<Bot size={20} />}
+          />
+        )}
 
         <StatCard
           title="Connected Apps"
@@ -232,10 +267,16 @@ export default async function SettingsPage() {
                 )}
               />
 
-              <HealthRow
-                label="Services added"
-                ok={activeServices > 0}
-              />
+              {canManageServices ? (
+                <HealthRow
+                  label="Services added"
+                  ok={activeServices > 0}
+                />
+              ) : (
+                <LockedHealthRow
+                  label="Services"
+                />
+              )}
 
               <HealthRow
                 label="Integration connected"
@@ -441,6 +482,57 @@ function EmptyPanel({ message }: { message: string }) {
   return (
     <div className="mt-6 rounded-2xl border border-dashed border-slate-700 p-8 text-center text-slate-400">
       {message}
+    </div>
+  )
+}
+
+function LockedStatCard({
+  title,
+  icon,
+}: {
+  title: string
+  icon: ReactNode
+}) {
+  return (
+    <Link
+      href="/dashboard/billing"
+      className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-6 transition hover:border-cyan-400/40"
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-cyan-100">
+          {title}
+        </p>
+
+        <div className="text-cyan-300">
+          {icon}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 text-sm font-bold text-cyan-300">
+        <LockKeyhole size={17} />
+        Pro feature
+      </div>
+    </Link>
+  )
+}
+
+function LockedHealthRow({
+  label,
+}: {
+  label: string
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+      <p className="text-sm font-semibold text-cyan-100">
+        {label}
+      </p>
+
+      <div className="flex items-center gap-2 text-cyan-300">
+        <LockKeyhole size={17} />
+        <span className="text-xs font-bold">
+          Pro
+        </span>
+      </div>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { supabaseAdmin as supabase } from "@/lib/supabase/admin"
+import { businessCanUseFeature } from "@/lib/plans"
 import { getBusinessTimezone } from "@/lib/scheduler/timezone"
 
 const GOOGLE_TOKEN_URL =
@@ -78,6 +79,39 @@ export type GoogleCalendarAvailabilityResult = {
 async function getConnection(
   businessId: string
 ): Promise<GoogleCalendarConnection | null> {
+  const {
+    data: business,
+    error: businessError,
+  } = await supabase
+    .from("businesses")
+    .select(`
+      subscription_plan,
+      subscription_status,
+      plan_override,
+      plan_override_expires_at
+    `)
+    .eq("id", businessId)
+    .maybeSingle()
+
+  if (businessError) {
+    console.error(
+      "GOOGLE CALENDAR PLAN ACCESS CHECK ERROR:",
+      businessError
+    )
+
+    return null
+  }
+
+  if (
+    !business ||
+    !businessCanUseFeature(
+      business,
+      "google_calendar"
+    )
+  ) {
+    return null
+  }
+
   const { data, error } = await supabase
     .from("google_calendar_connections")
     .select(`
@@ -669,6 +703,395 @@ export async function createGoogleCalendarEvent({
 
     console.error(
       "GOOGLE CALENDAR EVENT CREATE ERROR:",
+      message
+    )
+
+    await saveBookingSyncError({
+      businessId,
+      bookingId,
+      error: message,
+    })
+
+    return {
+      synced: false,
+      error: message,
+    }
+  }
+}
+
+type UpdateGoogleCalendarEventInput =
+  CreateGoogleCalendarEventInput
+
+export async function updateGoogleCalendarEvent({
+  businessId,
+  bookingId,
+  customerId,
+  serviceName,
+  bookingTime,
+  durationMinutes,
+}: UpdateGoogleCalendarEventInput): Promise<GoogleCalendarSyncResult> {
+  const connection =
+    await getConnection(businessId)
+
+  if (!connection) {
+    return {
+      synced: false,
+      skipped: true,
+    }
+  }
+
+  const {
+    data: booking,
+    error: bookingError,
+  } = await supabase
+    .from("bookings")
+    .select(`
+      google_calendar_event_id,
+      google_calendar_id
+    `)
+    .eq("id", bookingId)
+    .eq("business_id", businessId)
+    .eq("customer_id", customerId)
+    .maybeSingle()
+
+  if (bookingError) {
+    console.error(
+      "GOOGLE CALENDAR RESCHEDULE BOOKING LOAD ERROR:",
+      bookingError
+    )
+
+    return {
+      synced: false,
+      error:
+        "The existing booking could not be loaded.",
+    }
+  }
+
+  if (
+    !booking?.google_calendar_event_id
+  ) {
+    return {
+      synced: false,
+      skipped: true,
+    }
+  }
+
+  try {
+    const start =
+      new Date(bookingTime)
+
+    if (
+      Number.isNaN(start.getTime())
+    ) {
+      throw new Error(
+        "The new booking time is invalid."
+      )
+    }
+
+    const safeDuration = Math.max(
+      1,
+      Number(durationMinutes) || 30
+    )
+
+    const end = new Date(
+      start.getTime() +
+        safeDuration * 60_000
+    )
+
+    const timeZone =
+      await getBusinessTimezone(
+        businessId
+      )
+
+    const {
+      data: customer,
+      error: customerError,
+    } = await supabase
+      .from("customers")
+      .select("name, phone_number")
+      .eq("id", customerId)
+      .eq("business_id", businessId)
+      .maybeSingle()
+
+    if (customerError) {
+      console.error(
+        "GOOGLE CALENDAR RESCHEDULE CUSTOMER LOAD ERROR:",
+        customerError
+      )
+    }
+
+    const customerName =
+      customer?.name ||
+      customer?.phone_number ||
+      "Customer"
+
+    const description = [
+      "Jhyro AI booking",
+      `Service: ${serviceName}`,
+      customer?.name
+        ? `Customer: ${customer.name}`
+        : null,
+      customer?.phone_number
+        ? `Phone: ${customer.phone_number}`
+        : null,
+      `Jhyro booking ID: ${bookingId}`,
+    ]
+      .filter(Boolean)
+      .join("\n")
+
+    const calendarId =
+      booking.google_calendar_id ||
+      connection.calendar_id ||
+      "primary"
+
+    const eventUrl =
+      `${GOOGLE_CALENDAR_API}` +
+      `/calendars/${encodeURIComponent(
+        calendarId
+      )}/events/${encodeURIComponent(
+        booking.google_calendar_event_id
+      )}`
+
+    const response =
+      await googleRequest(
+        connection,
+        eventUrl,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            summary:
+              `${serviceName} - ${customerName}`,
+            description,
+            start: {
+              dateTime:
+                start.toISOString(),
+              timeZone,
+            },
+            end: {
+              dateTime:
+                end.toISOString(),
+              timeZone,
+            },
+          }),
+        }
+      )
+
+    const eventData =
+      (await response.json()) as GoogleEventResponse
+
+    if (!response.ok) {
+      throw new Error(
+        eventData.error?.message ||
+          "Google Calendar could not update the event."
+      )
+    }
+
+    const syncedAt =
+      new Date().toISOString()
+
+    const { error: syncError } =
+      await supabase
+        .from("bookings")
+        .update({
+          google_calendar_synced_at:
+            syncedAt,
+          google_calendar_sync_error:
+            null,
+        })
+        .eq("id", bookingId)
+        .eq(
+          "business_id",
+          businessId
+        )
+
+    if (syncError) {
+      console.error(
+        "GOOGLE CALENDAR RESCHEDULE SYNC SAVE ERROR:",
+        syncError
+      )
+    }
+
+    return {
+      synced: true,
+      eventId:
+        booking.google_calendar_event_id,
+      calendarId,
+      eventLink:
+        eventData.htmlLink,
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unknown Google Calendar reschedule error."
+
+    console.error(
+      "GOOGLE CALENDAR EVENT UPDATE ERROR:",
+      message
+    )
+
+    await saveBookingSyncError({
+      businessId,
+      bookingId,
+      error: message,
+    })
+
+    return {
+      synced: false,
+      error: message,
+    }
+  }
+}
+
+export async function deleteGoogleCalendarEvent({
+  businessId,
+  bookingId,
+  customerId,
+}: {
+  businessId: string
+  bookingId: string
+  customerId: string
+}): Promise<GoogleCalendarSyncResult> {
+  const connection =
+    await getConnection(businessId)
+
+  if (!connection) {
+    return {
+      synced: false,
+      skipped: true,
+    }
+  }
+
+  const {
+    data: booking,
+    error: bookingError,
+  } = await supabase
+    .from("bookings")
+    .select(`
+      google_calendar_event_id,
+      google_calendar_id
+    `)
+    .eq("id", bookingId)
+    .eq("business_id", businessId)
+    .eq("customer_id", customerId)
+    .maybeSingle()
+
+  if (bookingError) {
+    console.error(
+      "GOOGLE CALENDAR CANCEL BOOKING LOAD ERROR:",
+      bookingError
+    )
+
+    return {
+      synced: false,
+      error:
+        "The existing booking could not be loaded.",
+    }
+  }
+
+  if (
+    !booking?.google_calendar_event_id
+  ) {
+    return {
+      synced: false,
+      skipped: true,
+    }
+  }
+
+  try {
+    const calendarId =
+      booking.google_calendar_id ||
+      connection.calendar_id ||
+      "primary"
+
+    const eventUrl =
+      `${GOOGLE_CALENDAR_API}` +
+      `/calendars/${encodeURIComponent(
+        calendarId
+      )}/events/${encodeURIComponent(
+        booking.google_calendar_event_id
+      )}`
+
+    const response =
+      await googleRequest(
+        connection,
+        eventUrl,
+        {
+          method: "DELETE",
+        }
+      )
+
+    if (
+      !response.ok &&
+      response.status !== 404
+    ) {
+      let message =
+        "Google Calendar could not delete the event."
+
+      try {
+        const errorData =
+          (await response.json()) as GoogleApiError
+
+        message =
+          errorData.error?.message ||
+          message
+      } catch {
+        // Google may return an empty error response.
+      }
+
+      throw new Error(message)
+    }
+
+    const syncedAt =
+      new Date().toISOString()
+
+    const { error: updateError } =
+      await supabase
+        .from("bookings")
+        .update({
+          google_calendar_event_id:
+            null,
+          google_calendar_synced_at:
+            syncedAt,
+          google_calendar_sync_error:
+            null,
+        })
+        .eq("id", bookingId)
+        .eq(
+          "business_id",
+          businessId
+        )
+
+    if (updateError) {
+      console.error(
+        "GOOGLE CALENDAR CANCEL SYNC SAVE ERROR:",
+        updateError
+      )
+    }
+
+    console.log(
+      "GOOGLE CALENDAR EVENT DELETED:",
+      booking.google_calendar_event_id
+    )
+
+    return {
+      synced: true,
+      eventId:
+        booking.google_calendar_event_id,
+      calendarId,
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unknown Google Calendar cancellation error."
+
+    console.error(
+      "GOOGLE CALENDAR EVENT DELETE ERROR:",
       message
     )
 

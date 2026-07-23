@@ -2,6 +2,7 @@ import Link from "next/link"
 import type { ReactNode } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
+import { businessCanUseFeature } from "@/lib/plans"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import {
   ArrowLeft,
@@ -14,6 +15,7 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  LockKeyhole,
 } from "lucide-react"
 
 type PageProps = {
@@ -80,6 +82,18 @@ export default async function CustomerProfilePage({
       </PageWrapper>
     )
   }
+
+  const canUseBookings =
+    businessCanUseFeature(
+      business,
+      "appointment_bookings"
+    )
+
+  const canUseCustomerMemory =
+    businessCanUseFeature(
+      business,
+      "customer_memory"
+    )
 
   if (!customerId || customerId === "undefined") {
     return (
@@ -152,20 +166,30 @@ export default async function CustomerProfilePage({
       .order("created_at", { ascending: false })
       .returns<Message[]>(),
 
-    supabase
-      .from("bookings")
-      .select("id, business_id, customer_id, service, booking_time, status, created_at")
-      .eq("business_id", business.id)
-      .eq("customer_id", customer.id)
-      .order("created_at", { ascending: false })
-      .returns<Booking[]>(),
+    canUseBookings
+      ? supabase
+          .from("bookings")
+          .select("id, business_id, customer_id, service, booking_time, status, created_at")
+          .eq("business_id", business.id)
+          .eq("customer_id", customer.id)
+          .order("created_at", { ascending: false })
+          .returns<Booking[]>()
+      : Promise.resolve({
+          data: [] as Booking[],
+          error: null,
+        }),
 
-    supabase
-      .from("customer_memory")
-      .select("id, customer_id, type, content, created_at")
-      .eq("customer_id", customer.id)
-      .order("created_at", { ascending: false })
-      .returns<Memory[]>(),
+    canUseCustomerMemory
+      ? supabase
+          .from("customer_memory")
+          .select("id, customer_id, type, content, created_at")
+          .eq("customer_id", customer.id)
+          .order("created_at", { ascending: false })
+          .returns<Memory[]>()
+      : Promise.resolve({
+          data: [] as Memory[],
+          error: null,
+        }),
   ])
 
   const safeMessages = messages || []
@@ -197,7 +221,7 @@ export default async function CustomerProfilePage({
 
       <PageHeader
         title={customer.name || "Unknown Customer"}
-        description="Customer profile, messages, bookings, and memory."
+        description="Customer profile and recent messages."
       />
 
       <section className="mt-6 rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-8">
@@ -236,23 +260,44 @@ export default async function CustomerProfilePage({
           icon={<MessageCircle size={20} />}
         />
 
-        <StatCard
-          title="Bookings"
-          value={safeBookings.length}
-          icon={<CalendarDays size={20} />}
-        />
+        {canUseBookings ? (
+          <StatCard
+            title="Bookings"
+            value={safeBookings.length}
+            icon={<CalendarDays size={20} />}
+          />
+        ) : (
+          <LockedStatCard
+            title="Bookings"
+            icon={<CalendarDays size={20} />}
+          />
+        )}
 
-        <StatCard
-          title="Booked"
-          value={bookedCount}
-          icon={<CheckCircle2 size={20} />}
-        />
+        {canUseBookings ? (
+          <StatCard
+            title="Booked"
+            value={bookedCount}
+            icon={<CheckCircle2 size={20} />}
+          />
+        ) : (
+          <LockedStatCard
+            title="Booked"
+            icon={<CheckCircle2 size={20} />}
+          />
+        )}
 
-        <StatCard
-          title="Memory"
-          value={safeMemories.length}
-          icon={<Brain size={20} />}
-        />
+        {canUseCustomerMemory ? (
+          <StatCard
+            title="Memory"
+            value={safeMemories.length}
+            icon={<Brain size={20} />}
+          />
+        ) : (
+          <LockedStatCard
+            title="Memory"
+            icon={<Brain size={20} />}
+          />
+        )}
       </div>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_380px]">
@@ -314,6 +359,11 @@ export default async function CustomerProfilePage({
               Booking Status
             </h2>
 
+            {!canUseBookings ? (
+              <UpgradeFeaturePanel
+                message="Booking details are available on the Pro and Business plans."
+              />
+            ) : (
             <div className="mt-5 space-y-3">
               <StatusRow
                 label="Booked"
@@ -331,6 +381,7 @@ export default async function CustomerProfilePage({
                 warning
               />
             </div>
+            )}
           </section>
 
           <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
@@ -338,6 +389,11 @@ export default async function CustomerProfilePage({
               Customer Memory
             </h2>
 
+            {!canUseCustomerMemory ? (
+              <UpgradeFeaturePanel
+                message="Customer memory is available on the Pro and Business plans."
+              />
+            ) : (
             <div className="mt-5 space-y-3">
               {safeMemories.length > 0 ? (
                 safeMemories.slice(0, 5).map((memory) => (
@@ -352,6 +408,7 @@ export default async function CustomerProfilePage({
                 </p>
               )}
             </div>
+            )}
           </section>
         </aside>
       </div>
@@ -362,6 +419,11 @@ export default async function CustomerProfilePage({
           description="All bookings connected to this customer."
         />
 
+        {!canUseBookings ? (
+          <UpgradeFeaturePanel
+            message="Booking history is available on the Pro and Business plans."
+          />
+        ) : (
         <div className="mt-6 space-y-4">
           {safeBookings.length > 0 ? (
             safeBookings.map((booking) => (
@@ -374,6 +436,7 @@ export default async function CustomerProfilePage({
             <EmptyState message="No bookings for this customer yet." />
           )}
         </div>
+        )}
       </section>
     </PageWrapper>
   )
@@ -608,4 +671,61 @@ function formatDateTime(date?: string | null) {
     minute: "2-digit",
     hour12: true,
   })
+}
+
+function LockedStatCard({
+  title,
+  icon,
+}: {
+  title: string
+  icon: ReactNode
+}) {
+  return (
+    <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-6">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-cyan-100">
+          {title}
+        </p>
+
+        <div className="text-cyan-300">
+          {icon}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 text-sm font-bold text-cyan-300">
+        <LockKeyhole size={17} />
+        Pro feature
+      </div>
+    </div>
+  )
+}
+
+function UpgradeFeaturePanel({
+  message,
+}: {
+  message: string
+}) {
+  return (
+    <div className="mt-5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+      <div className="flex items-start gap-3">
+        <LockKeyhole
+          size={18}
+          className="mt-0.5 shrink-0 text-cyan-300"
+        />
+
+        <div>
+          <p className="text-sm leading-relaxed text-cyan-100">
+            {message}
+          </p>
+
+          <Link
+            href="/dashboard/billing"
+            className="mt-3 inline-flex text-sm font-bold text-cyan-300 transition hover:text-cyan-200"
+          >
+            Upgrade to Pro
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
 }

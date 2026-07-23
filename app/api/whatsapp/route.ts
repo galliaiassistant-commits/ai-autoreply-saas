@@ -1,6 +1,9 @@
 import OpenAI from "openai"
+import { after } from "next/server"
 import { supabaseAdmin as supabase } from "@/lib/supabase/admin"
+import { businessCanUseFeature } from "@/lib/plans"
 import { sendWhatsAppMessage } from "@/lib/whatsapp"
+import { deleteGoogleCalendarEvent } from "@/lib/google-calendar"
 import {
   getOpenBooking,
   extractBooking,
@@ -54,6 +57,7 @@ type WebhookBusiness = {
   knowledge?: string | null
   description?: string | null
   timezone?: string | null
+  subscription_plan?: string | null
   subscription_status?: string | null
   payment_due_at?: string | null
   billing_grace_ends_at?: string | null
@@ -222,6 +226,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const webhookStartedAt = Date.now()
+
   try {
     const body = await req.json()
 
@@ -261,20 +267,60 @@ export async function POST(req: Request) {
       )
     }
 
-    const businessServicesText =
-  await getBusinessServicesText(resolvedBusiness.business.id)
-
-const business = {
-  ...resolvedBusiness.business,
-  services:
-    businessServicesText ||
-    resolvedBusiness.business.services ||
-    null,
-}
-
-const integration = resolvedBusiness.integration
+    const business = resolvedBusiness.business
+    const integration = resolvedBusiness.integration
+    const action = detectUserAction(userText)
+    const canUseCustomerMemory =
+      businessCanUseFeature(
+        business,
+        "customer_memory"
+      )
+    const canUseWhatsAppAI =
+      businessCanUseFeature(
+        business,
+        "whatsapp_ai"
+      )
+    const canUseBookings =
+      businessCanUseFeature(
+        business,
+        "appointment_bookings"
+      )
+    const canManageServices =
+      businessCanUseFeature(
+        business,
+        "service_management"
+      )
+    const canUseBusinessKnowledge =
+      businessCanUseFeature(
+        business,
+        "business_knowledge"
+      )
 
     console.log("BUSINESS ID:", business.id)
+
+    if (!canUseWhatsAppAI) {
+      console.log(
+        "WHATSAPP AI REPLY SKIPPED FOR PLAN:",
+        business.id,
+        business.subscription_plan || "not_set",
+        business.subscription_status || "not_set"
+      )
+
+      return Response.json({
+        ok: true,
+        ignored: true,
+        reason: "whatsapp_ai_not_available",
+      })
+    }
+
+    if (!canUseBusinessKnowledge) {
+      business.knowledge = null
+      business.business_knowledge = null
+    }
+
+    if (!canManageServices) {
+      business.services = null
+    }
 
     const billingLock =
       getBillingLockState(business)
@@ -308,8 +354,14 @@ const integration = resolvedBusiness.integration
       })
     }
 
-    const whatsappAccessToken =
-      await getWhatsAppAccessTokenForBusiness(business.id)
+    const [whatsappAccessToken, customer] =
+      await Promise.all([
+        getWhatsAppAccessTokenForBusiness(business.id),
+        findOrCreateCustomer({
+          businessId: business.id,
+          phoneNumber: from,
+        }),
+      ])
 
     if (!whatsappAccessToken) {
       console.error(
@@ -361,11 +413,6 @@ async function getBusinessServicesText(businessId: string) {
     .join(", ")
 }
 
-    const customer = await findOrCreateCustomer({
-      businessId: business.id,
-      phoneNumber: from,
-    })
-
     console.log("CUSTOMER ID:", customer.id)
 
     async function finish(replyText: string) {
@@ -380,16 +427,28 @@ async function getBusinessServicesText(businessId: string) {
         accessToken: whatsappAccessToken,
       })
 
-      const { error: aiMsgError } = await supabase
-        .from("messages")
-        .insert({
-          business_id: business.id,
-          customer_id: customer.id,
-          role: "assistant",
-          message: safeReply,
-        })
+      console.log(
+        "WHATSAPP REPLY SENT IN:",
+        `${Date.now() - webhookStartedAt}ms`
+      )
 
-      console.log("AI MESSAGE INSERT ERROR:", aiMsgError)
+      after(async () => {
+        const { error: aiMsgError } = await supabase
+          .from("messages")
+          .insert({
+            business_id: business.id,
+            customer_id: customer.id,
+            role: "assistant",
+            message: safeReply,
+          })
+
+        if (aiMsgError) {
+          console.error(
+            "AI MESSAGE INSERT ERROR:",
+            aiMsgError
+          )
+        }
+      })
 
       return Response.json({
         success: true,
@@ -406,8 +465,6 @@ async function getBusinessServicesText(businessId: string) {
       return finish("TEST RESET WORKS")
     }
 
-    await updateLastSeen(from)
-
     const detectedName = detectCustomerName(userText)
 
 if (detectedName) {
@@ -415,69 +472,39 @@ if (detectedName) {
     customer,
     businessId: business.id,
     name: detectedName,
+    saveMemory:
+      canUseCustomerMemory,
   })
 
   customer.name = detectedName
 }
 
-    const { error: userMsgError } = await supabase
-      .from("messages")
-      .insert({
-        business_id: business.id,
-        customer_id: customer.id,
-        role: "user",
-        message: userText,
+    after(async () => {
+      const backgroundWrites = await Promise.allSettled([
+        updateLastSeen(from),
+        supabase
+          .from("messages")
+          .insert({
+            business_id: business.id,
+            customer_id: customer.id,
+            role: "user",
+            message: userText,
+          }),
+      ])
+
+      backgroundWrites.forEach((result, index) => {
+        if (result.status === "rejected") {
+          console.error(
+            index === 0
+              ? "UPDATE LAST SEEN ERROR:"
+              : "USER MESSAGE INSERT ERROR:",
+            result.reason
+          )
+        }
       })
-
-    console.log("USER MESSAGE INSERT ERROR:", userMsgError)
-
-    const { data: history } = await supabase
-      .from("messages")
-      .select("role, message")
-      .eq("business_id", business.id)
-      .eq("customer_id", customer.id)
-      .order("created_at", {
-        ascending: false,
-      })
-      .limit(8)
-
-    const memoryText =
-      await getCustomerMemoryText(customer.id)
-
-    const openBooking =
-      await getOpenBooking(business.id, customer.id)
-
-    const action = detectUserAction(userText)
-
-    console.log("DETECTED ACTION:", action)
-    console.log("OPEN BOOKING:", openBooking)
+    })
 
     const lowerText = userText.toLowerCase()
-
-    const wantsToCancelBooking =
-      lowerText.includes("cancel") ||
-      lowerText.includes("never mind") ||
-      lowerText.includes("nevermind") ||
-      lowerText.includes("forget it") ||
-      lowerText.includes("don't want") ||
-      lowerText.includes("dont want")
-
-    if (wantsToCancelBooking && openBooking) {
-      const { error: cancelError } = await supabase
-        .from("bookings")
-        .update({
-          status: "cancelled",
-        })
-        .eq("id", openBooking.id)
-        .eq("business_id", business.id)
-        .eq("customer_id", customer.id)
-
-      console.log("CANCEL BOOKING ERROR:", cancelError)
-
-      return finish(
-        "No problem, I've cancelled that booking request."
-      )
-    }
 
     const friendlyClosingReplies = [
       "you too",
@@ -499,8 +526,155 @@ if (detectedName) {
       return finish(quickReply)
     }
 
+    if (action === "opening_hours") {
+      const hoursText = await getBusinessHoursText({
+        businessId: business.id,
+        fallbackHours: business.hours,
+      })
+
+      return finish(hoursText)
+    }
+
+    if (
+      shouldUseBooking(action) &&
+      !canUseBookings
+    ) {
+      return finish(
+        "Online appointment booking is not currently available. Please contact the business directly for assistance."
+      )
+    }
+
+    if (action === "business_question") {
+      const instantBusinessReply =
+        getInstantBusinessReply({
+          userText,
+          business,
+        })
+
+      if (instantBusinessReply) {
+        return finish(instantBusinessReply)
+      }
+
+      if (asksAboutServicesOrPrices(userText)) {
+        if (!canManageServices) {
+          return finish(
+            "Please contact the business directly for current service and pricing information."
+          )
+        }
+
+        const servicesText =
+          await getBusinessServicesText(business.id)
+
+        if (servicesText) {
+          return finish(
+            `Our services are: ${servicesText}.`
+          )
+        }
+
+        return finish(
+          "Sorry, the business has not added its services and prices yet."
+        )
+      }
+    }
+
+    const businessServicesText =
+      canManageServices
+        ? await getBusinessServicesText(business.id)
+        : ""
+
+    business.services =
+      businessServicesText ||
+      business.services ||
+      null
+
+    const [historyResult, memoryText, openBooking] =
+      await Promise.all([
+        supabase
+          .from("messages")
+          .select("role, message")
+          .eq("business_id", business.id)
+          .eq("customer_id", customer.id)
+          .order("created_at", {
+            ascending: false,
+          })
+          .limit(8),
+        canUseCustomerMemory
+          ? getCustomerMemoryText(customer.id)
+          : Promise.resolve(""),
+        canUseBookings
+          ? getOpenBooking(
+              business.id,
+              customer.id,
+              action === "reschedule_booking" ||
+                action === "cancel_booking"
+            )
+          : Promise.resolve(null),
+      ])
+
+    const history = historyResult.data || []
+
+    if (historyResult.error) {
+      console.error(
+        "MESSAGE HISTORY ERROR:",
+        historyResult.error
+      )
+    }
+
+    console.log("DETECTED ACTION:", action)
+    console.log("OPEN BOOKING:", openBooking)
+
+    const wantsToCancelBooking =
+      lowerText.includes("cancel") ||
+      lowerText.includes("never mind") ||
+      lowerText.includes("nevermind") ||
+      lowerText.includes("forget it") ||
+      lowerText.includes("don't want") ||
+      lowerText.includes("dont want")
+
+    if (wantsToCancelBooking && openBooking) {
+      const calendarDelete =
+        await deleteGoogleCalendarEvent({
+          businessId: business.id,
+          bookingId: openBooking.id,
+          customerId: customer.id,
+        })
+
+      console.log(
+        "GOOGLE CALENDAR CANCEL RESULT:",
+        calendarDelete
+      )
+
+      if (
+        !calendarDelete.synced &&
+        !calendarDelete.skipped
+      ) {
+        return finish(
+          "I could not remove the appointment from Google Calendar, so the booking has not been cancelled. Please try again."
+        )
+      }
+
+      const { error: cancelError } = await supabase
+        .from("bookings")
+        .update({
+          status: "cancelled",
+        })
+        .eq("id", openBooking.id)
+        .eq("business_id", business.id)
+        .eq("customer_id", customer.id)
+
+      console.log("CANCEL BOOKING ERROR:", cancelError)
+
+      return finish(
+        "No problem, I've cancelled that booking request."
+      )
+    }
+
     const useBooking =
-  shouldUseBooking(action) || Boolean(openBooking)
+      canUseBookings &&
+      (
+        shouldUseBooking(action) ||
+        Boolean(openBooking)
+      )
 
     const isNewBookingRequest =
       action === "book_appointment" &&
@@ -525,6 +699,25 @@ if (detectedName) {
       )
 
       if (booking.cancel_booking && openBooking) {
+        const calendarDelete =
+          await deleteGoogleCalendarEvent({
+            businessId: business.id,
+            bookingId: openBooking.id,
+            customerId: customer.id,
+          })
+
+        console.log(
+          "GOOGLE CALENDAR CANCEL RESULT:",
+          calendarDelete
+        )
+
+        if (
+          !calendarDelete.synced &&
+          !calendarDelete.skipped
+        ) {
+          reply =
+            "I could not remove the appointment from Google Calendar, so the booking has not been cancelled. Please try again."
+        } else {
         const { error: cancelError } = await supabase
           .from("bookings")
           .update({
@@ -538,6 +731,7 @@ if (detectedName) {
 
         reply =
           "No problem, I've cancelled that booking request."
+        }
       } else if (booking.is_booking || openBooking) {
         reply = await saveBookingAndGetReply({
           businessId: business.id,
@@ -574,17 +768,37 @@ if (detectedName) {
       reply = await generateReply(openai, aiMessages)
     }
 
-    await saveExtractedMemories({
-      customerId: customer.id,
-      userText,
-    })
+    after(async () => {
+      if (!canUseCustomerMemory) {
+        return
+      }
 
-    await updateCustomerSummary(
-      openai,
-      customer.id,
-      userText,
-      memoryText
-    )
+      const backgroundResults = await Promise.allSettled([
+        saveExtractedMemories({
+          customerId: customer.id,
+          userText,
+          enabled:
+            canUseCustomerMemory,
+        }),
+        updateCustomerSummary(
+          openai,
+          customer.id,
+          userText,
+          memoryText
+        ),
+      ])
+
+      backgroundResults.forEach((result, index) => {
+        if (result.status === "rejected") {
+          console.error(
+            index === 0
+              ? "BACKGROUND MEMORY ERROR:"
+              : "BACKGROUND SUMMARY ERROR:",
+            result.reason
+          )
+        }
+      })
+    })
 
     return finish(reply)
   } catch (err) {
@@ -620,8 +834,25 @@ async function resolveBusinessFromWebhook(
       .eq("phone_number_id", phoneNumberId)
       .maybeSingle<WhatsAppIntegration>()
 
-    console.log("INTEGRATION LOOKUP DATA:", data)
-    console.log("INTEGRATION LOOKUP ERROR:", error)
+    console.log(
+  "INTEGRATION LOOKUP:",
+  data
+    ? {
+        id: data.id,
+        business_id: data.business_id,
+        provider: data.provider,
+        connected: data.connected,
+        phone_number_id: data.phone_number_id,
+      }
+    : null
+)
+
+if (error) {
+  console.error(
+    "INTEGRATION LOOKUP ERROR:",
+    error
+  )
+}
 
     integration = data || null
   }
@@ -759,10 +990,12 @@ async function saveCustomerName({
   customer,
   businessId,
   name,
+  saveMemory,
 }: {
   customer: Customer
   businessId: string
   name: string
+  saveMemory: boolean
 }) {
   if (!name) return
 
@@ -775,6 +1008,10 @@ async function saveCustomerName({
     .eq("business_id", businessId)
 
   console.log("CUSTOMER NAME ERROR:", customerError)
+
+  if (!saveMemory) {
+    return
+  }
 
   const { data: existingMemory } = await supabase
     .from("customer_memory")
@@ -828,7 +1065,11 @@ function detectUserAction(userText: string) {
   if (
     lowerText.includes("change") ||
     lowerText.includes("move") ||
-    lowerText.includes("reschedule")
+    lowerText.includes("reschedule") ||
+    lowerText.includes("reshedule") ||
+    lowerText.includes("reschedul") ||
+    lowerText.includes("another day") ||
+    lowerText.includes("instead")
   ) {
     return "reschedule_booking"
   }
@@ -908,6 +1149,188 @@ function detectUserAction(userText: string) {
   }
 
   return "general_chat"
+}
+
+function asksAboutServicesOrPrices(userText: string) {
+  const lowerText = userText.toLowerCase()
+
+  return (
+    /\b(price|prices|cost|costs|rate|rates|charge|charges|fee|fees|service|services)\b/.test(
+      lowerText
+    ) || lowerText.includes("how much")
+  )
+}
+
+function getInstantBusinessReply({
+  userText,
+  business,
+}: {
+  userText: string
+  business: WebhookBusiness
+}) {
+  const lowerText = userText.toLowerCase()
+
+  const asksLocation =
+    /\b(address|location|located|directions)\b/.test(
+      lowerText
+    ) ||
+    lowerText.includes("where are you") ||
+    lowerText.includes("where is the business")
+
+  if (asksLocation) {
+    return business.address
+      ? `We are located at ${business.address}.`
+      : "Sorry, the business has not added its address yet."
+  }
+
+  const asksPhone =
+    /\b(phone|telephone|contact|call)\b/.test(
+      lowerText
+    ) || lowerText.includes("phone number")
+
+  if (asksPhone) {
+    return business.phone
+      ? `You can contact us at ${business.phone}.`
+      : "Sorry, the business has not added a contact number yet."
+  }
+
+  return null
+}
+
+async function getBusinessHoursText({
+  businessId,
+  fallbackHours,
+}: {
+  businessId: string
+  fallbackHours?: string | null
+}) {
+  const { data, error } = await supabase
+    .from("business_availability")
+    .select("day_of_week, open_time, close_time, is_closed")
+    .eq("business_id", businessId)
+
+  if (error) {
+    console.error("GET BUSINESS HOURS ERROR:", error)
+
+    return fallbackHours
+      ? `Our opening hours are ${fallbackHours}.`
+      : "Sorry, the business has not added its opening hours yet."
+  }
+
+  if (!data || data.length === 0) {
+    return fallbackHours
+      ? `Our opening hours are ${fallbackHours}.`
+      : "Sorry, the business has not added its opening hours yet."
+  }
+
+  const hasZeroBasedDay = data.some(
+    (item) => String(item.day_of_week) === "0"
+  )
+
+  const formattedDays = data
+    .map((item) => {
+      const day = formatStoredDay(
+        item.day_of_week,
+        hasZeroBasedDay
+      )
+
+      const isClosed =
+        item.is_closed === true ||
+        !item.open_time ||
+        !item.close_time
+
+      return {
+        day,
+        order: getDayOrder(day),
+        text: isClosed
+          ? `${day}: Closed`
+          : `${day}: ${formatStoredTime(
+              item.open_time
+            )} - ${formatStoredTime(
+              item.close_time
+            )}`,
+      }
+    })
+    .sort((a, b) => a.order - b.order)
+
+  return `Our opening hours are:\n${formattedDays
+    .map((item) => item.text)
+    .join("\n")}`
+}
+
+function formatStoredDay(
+  value: unknown,
+  hasZeroBasedDay: boolean
+) {
+  const raw = String(value ?? "").trim()
+  const numericDay = Number(raw)
+
+  if (Number.isInteger(numericDay)) {
+    const zeroBasedDays = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ]
+
+    const mondayBasedDays = [
+      "",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ]
+
+    return hasZeroBasedDay
+      ? zeroBasedDays[numericDay] || raw
+      : mondayBasedDays[numericDay] || raw
+  }
+
+  return raw
+    ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase()
+    : "Unknown day"
+}
+
+function getDayOrder(day: string) {
+  const days = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ]
+
+  const index = days.indexOf(day)
+
+  return index === -1 ? 99 : index
+}
+
+function formatStoredTime(value: string) {
+  const [rawHour, rawMinute] = value
+    .slice(0, 5)
+    .split(":")
+    .map(Number)
+
+  if (
+    Number.isNaN(rawHour) ||
+    Number.isNaN(rawMinute)
+  ) {
+    return value
+  }
+
+  const period = rawHour >= 12 ? "PM" : "AM"
+  const hour = rawHour % 12 || 12
+  const minute = String(rawMinute).padStart(2, "0")
+
+  return `${hour}:${minute} ${period}`
 }
 
 function buildAIMessages({
@@ -1040,10 +1463,16 @@ Knowledge: ${business.knowledge || business.business_knowledge || "Not set"}
 async function saveExtractedMemories({
   customerId,
   userText,
+  enabled,
 }: {
   customerId: string
   userText: string
+  enabled: boolean
 }) {
+  if (!enabled) {
+    return
+  }
+
   const memoryExtract =
     await openai.chat.completions.create({
       model: "gpt-4o-mini",

@@ -2,6 +2,7 @@ import Link from "next/link"
 import type { ReactNode } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
+import { businessCanUseFeature } from "@/lib/plans"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import BusinessHoursEditor from "@/components/business/BusinessHoursEditor"
 import {
@@ -16,6 +17,7 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertCircle,
+  LockKeyhole,
 } from "lucide-react"
 
 export default async function BusinessPage() {
@@ -41,6 +43,18 @@ export default async function BusinessPage() {
     )
   }
 
+  const canManageServices =
+    businessCanUseFeature(
+      business,
+      "service_management"
+    )
+
+  const canUseGoogleCalendar =
+    businessCanUseFeature(
+      business,
+      "google_calendar"
+    )
+
   const supabase = await createClient()
 
   const [
@@ -50,11 +64,16 @@ export default async function BusinessPage() {
     { data: closures, error: closuresError },
     { data: integrations, error: integrationsError },
   ] = await Promise.all([
-    supabase
-      .from("business_services")
-      .select("*")
-      .eq("business_id", business.id)
-      .order("created_at", { ascending: false }),
+    canManageServices
+      ? supabase
+          .from("business_services")
+          .select("*")
+          .eq("business_id", business.id)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({
+          data: [],
+          error: null,
+        }),
 
     supabase
       .from("business_availability")
@@ -110,7 +129,13 @@ export default async function BusinessPage() {
   )
 
   const connectedIntegrations = safeIntegrations.filter(
-    (integration) => integration.connected
+    (integration) =>
+      integration.connected &&
+      (
+        integration.provider !==
+          "google_calendar" ||
+        canUseGoogleCalendar
+      )
   )
 
   const openDays = safeAvailability.filter(
@@ -173,11 +198,18 @@ export default async function BusinessPage() {
       </section>
 
       <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Active Services"
-          value={activeServices.length}
-          icon={<Scissors size={20} />}
-        />
+        {canManageServices ? (
+          <StatCard
+            title="Active Services"
+            value={activeServices.length}
+            icon={<Scissors size={20} />}
+          />
+        ) : (
+          <LockedStatCard
+            title="Active Services"
+            icon={<Scissors size={20} />}
+          />
+        )}
 
         <StatCard
           title="Open Days"
@@ -282,10 +314,16 @@ export default async function BusinessPage() {
                 )}
               />
 
-              <HealthRow
-                label="Services Added"
-                ok={activeServices.length > 0}
-              />
+              {canManageServices ? (
+                <HealthRow
+                  label="Services Added"
+                  ok={activeServices.length > 0}
+                />
+              ) : (
+                <LockedHealthRow
+                  label="Services"
+                />
+              )}
 
               <HealthRow
                 label="Hours Added"
@@ -350,6 +388,7 @@ export default async function BusinessPage() {
         </aside>
       </div>
 
+      {canManageServices ? (
       <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -413,6 +452,36 @@ export default async function BusinessPage() {
           )}
         </div>
       </section>
+      ) : (
+        <section className="mt-8 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-6">
+          <div className="flex items-start gap-4">
+            <div className="rounded-xl bg-cyan-400 p-3 text-slate-950">
+              <LockKeyhole size={21} />
+            </div>
+
+            <div>
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-300">
+                Pro feature
+              </p>
+
+              <h2 className="mt-2 text-xl font-bold text-white">
+                Service Management
+              </h2>
+
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300">
+                Upgrade to Pro or Business to create services, set prices, and configure appointment durations.
+              </p>
+
+              <Link
+                href="/dashboard/billing"
+                className="mt-5 inline-flex rounded-xl bg-cyan-400 px-5 py-3 font-bold text-slate-950 transition hover:bg-cyan-300"
+              >
+                Upgrade to Pro
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       <BusinessHoursEditor
         businessId={business.id}
@@ -568,6 +637,57 @@ function EmptyPanel({ message }: { message: string }) {
   return (
     <div className="rounded-2xl border border-dashed border-slate-700 p-8 text-center text-slate-400">
       {message}
+    </div>
+  )
+}
+
+function LockedStatCard({
+  title,
+  icon,
+}: {
+  title: string
+  icon: ReactNode
+}) {
+  return (
+    <Link
+      href="/dashboard/billing"
+      className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-6 transition hover:border-cyan-400/40"
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-cyan-100">
+          {title}
+        </p>
+
+        <div className="text-cyan-300">
+          {icon}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 text-sm font-bold text-cyan-300">
+        <LockKeyhole size={17} />
+        Pro feature
+      </div>
+    </Link>
+  )
+}
+
+function LockedHealthRow({
+  label,
+}: {
+  label: string
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+      <p className="text-sm font-semibold text-cyan-100">
+        {label}
+      </p>
+
+      <div className="flex items-center gap-2 text-cyan-300">
+        <LockKeyhole size={17} />
+        <span className="text-xs font-bold">
+          Pro
+        </span>
+      </div>
     </div>
   )
 }

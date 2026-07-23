@@ -1,10 +1,12 @@
 import OpenAI from "openai"
 import { supabaseAdmin as supabase } from "@/lib/supabase/admin"
+import { businessCanUseFeature } from "@/lib/plans"
 import {
   checkAvailability,
   createScheduledBooking,
   findServiceByName,
 } from "@/lib/scheduler"
+import { updateGoogleCalendarEvent } from "@/lib/google-calendar"
 
 import { getBusinessTimezone } from "@/lib/scheduler/timezone"
 
@@ -37,16 +39,67 @@ type ExtractedBooking = {
   status?: BookingStatus
 }
 
+async function businessCanUseBookings(
+  businessId: string
+) {
+  const {
+    data: business,
+    error,
+  } = await supabase
+    .from("businesses")
+    .select(`
+      subscription_plan,
+      subscription_status,
+      plan_override,
+      plan_override_expires_at
+    `)
+    .eq("id", businessId)
+    .maybeSingle()
+
+  if (error) {
+    console.error(
+      "BOOKING PLAN ACCESS ERROR:",
+      error
+    )
+
+    return false
+  }
+
+  if (!business) {
+    return false
+  }
+
+  return businessCanUseFeature(
+    business,
+    "appointment_bookings"
+  )
+}
+
 export async function getOpenBooking(
   businessId: string,
-  customerId: string
+  customerId: string,
+  includeBooked = false
 ) {
+  const hasAccess =
+    await businessCanUseBookings(
+      businessId
+    )
+
+  if (!hasAccess) {
+    return null
+  }
+
   const { data, error } = await supabase
     .from("bookings")
     .select("*")
     .eq("business_id", businessId)
     .eq("customer_id", customerId)
-    .eq("status", "missing_details")
+    .in(
+      "status",
+      includeBooked
+        ? ["missing_details", "booked"]
+        : ["missing_details"]
+    )
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -70,6 +123,15 @@ export async function updateBooking({
   bookingId: string
   updates: BookingUpdates
 }) {
+  const hasAccess =
+    await businessCanUseBookings(
+      businessId
+    )
+
+  if (!hasAccess) {
+    return null
+  }
+
   const { data, error } = await supabase
     .from("bookings")
     .update(updates)
@@ -88,6 +150,15 @@ export async function updateBooking({
 }
 
 export async function createBooking(booking: BookingInput) {
+  const hasAccess =
+    await businessCanUseBookings(
+      booking.business_id
+    )
+
+  if (!hasAccess) {
+    return null
+  }
+
   const { data, error } = await supabase
     .from("bookings")
     .insert({
@@ -134,6 +205,17 @@ export async function extractBooking(
   isNewBookingRequest: boolean,
   businessId: string
 ): Promise<ExtractedBooking> {
+  const hasAccess =
+    await businessCanUseBookings(
+      businessId
+    )
+
+  if (!hasAccess) {
+    return {
+      is_booking: false,
+    }
+  }
+
   const businessTimezone =
     await getBusinessTimezone(businessId)
 
@@ -187,7 +269,12 @@ Return shape:
         role: "user",
         content: `
 Existing open booking:
-${JSON.stringify(isNewBookingRequest ? null : openBooking)}
+${JSON.stringify(
+  getOpenBookingExtractionContext(
+    openBooking,
+    businessTimezone
+  )
+)}
 
 Current customer message:
 ${userText}
@@ -237,6 +324,40 @@ function getBusinessNowText(
     minute: "2-digit",
     hour12: true,
   }).format(new Date())
+}
+
+function getOpenBookingExtractionContext(
+  openBooking: any,
+  timeZone: string
+) {
+  if (!openBooking) {
+    return null
+  }
+
+  let localBookingTime: string | null = null
+
+  if (openBooking.booking_time) {
+    const date = new Date(openBooking.booking_time)
+
+    if (!Number.isNaN(date.getTime())) {
+      const parts = getZonedParts(date, timeZone)
+
+      const pad = (value: number) =>
+        String(value).padStart(2, "0")
+
+      localBookingTime =
+        `${parts.year}-${pad(parts.month)}-${pad(parts.day)}` +
+        `T${pad(parts.hour)}:${pad(parts.minute)}:${pad(parts.second)}`
+    }
+  }
+
+  return {
+    id: openBooking.id,
+    service: openBooking.service || null,
+    booking_time: localBookingTime,
+    status:
+      openBooking.status || "missing_details",
+  }
 }
 
 function cleanJson(value: string) {
@@ -435,6 +556,19 @@ async function saveMissingDetails({
   service: string | null
   bookingTime: string | null
 }) {
+  const hasAccess =
+    await businessCanUseBookings(
+      businessId
+    )
+
+  if (!hasAccess) {
+    return null
+  }
+
+  if (openBooking?.status === "booked") {
+    return openBooking
+  }
+
   if (openBooking) {
     return await updateBooking({
       businessId,
@@ -471,6 +605,15 @@ export async function saveBookingAndGetReply({
   isNewBookingRequest: boolean
   userText: string
 }) {
+  const hasAccess =
+    await businessCanUseBookings(
+      businessId
+    )
+
+  if (!hasAccess) {
+    return "Online appointment booking is not currently available. Please contact the business directly for assistance."
+  }
+
   if (openBooking) {
     const belongsToBusiness =
       openBooking.business_id === businessId &&
@@ -495,12 +638,12 @@ export async function saveBookingAndGetReply({
 
   const service =
     booking.service ??
-    (isNewBookingRequest ? null : openBooking?.service) ??
+    openBooking?.service ??
     null
 
   const bookingTime =
     booking.booking_time ??
-    (isNewBookingRequest ? null : openBooking?.booking_time) ??
+    openBooking?.booking_time ??
     null
 
   console.log("FINAL BOOKING TIME:", bookingTime)
@@ -590,13 +733,70 @@ if (bookingTime && hasRealTime && !service) {
       customerId,
       openBooking,
       service: validService.name,
-      bookingTime: null,
+      bookingTime,
     })
 
     return (
       hoursValidation.message ||
       "That appointment time is outside the business hours. Please choose another time."
     )
+  }
+
+  if (openBooking?.status === "booked") {
+    const calendarResult =
+      await updateGoogleCalendarEvent({
+        businessId,
+        bookingId: openBooking.id,
+        customerId,
+        serviceName: validService.name,
+        bookingTime,
+        durationMinutes:
+          serviceDurationMinutes,
+      })
+
+    if (
+      !calendarResult.synced &&
+      !calendarResult.skipped
+    ) {
+      return "I could not update the Google Calendar event. Your original appointment has not been changed. Please try again."
+    }
+
+    const updatedBooking =
+      await updateBooking({
+        businessId,
+        customerId,
+        bookingId: openBooking.id,
+        updates: {
+          service: validService.name,
+          booking_time: bookingTime,
+          status: "booked",
+        },
+      })
+
+    if (!updatedBooking) {
+      return "I could not save the new appointment time. Please try again."
+    }
+
+    const businessTimezone =
+      await getBusinessTimezone(
+        businessId
+      )
+
+    const formattedTime =
+      new Date(
+        bookingTime
+      ).toLocaleString("en-US", {
+        timeZone:
+          businessTimezone,
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+
+    return `Your ${validService.name} appointment has been rescheduled to ${formattedTime}.`
   }
 
   if (openBooking) {

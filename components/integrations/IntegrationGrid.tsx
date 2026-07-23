@@ -4,13 +4,15 @@ import {
   IntegrationRecord,
 } from "./types"
 
-const integrations: IntegrationDefinition[] = [
+const integrations:
+  IntegrationDefinition[] = [
   {
     provider: "whatsapp",
     name: "WhatsApp",
     category: "Communication",
     icon: "💬",
-    statusLabel: "Customer messaging",
+    statusLabel:
+      "Customer messaging",
     description:
       "Receive and reply to WhatsApp customers using Jhyro AI.",
   },
@@ -41,15 +43,15 @@ const integrations: IntegrationDefinition[] = [
     icon: "📅",
     statusLabel: "Calendar sync",
     description:
-      "Sync Jhyro AI bookings with your Google Calendar.",
-    comingSoon: true,
+      "Create Calendar events for Jhyro bookings and block appointments during existing busy events.",
   },
   {
     provider: "gmail",
     name: "Gmail",
     category: "Email",
     icon: "📧",
-    statusLabel: "Email assistant",
+    statusLabel:
+      "Email assistant",
     description:
       "Let Jhyro AI help reply to customer emails and inquiries.",
     comingSoon: true,
@@ -69,7 +71,8 @@ const integrations: IntegrationDefinition[] = [
     name: "Shopify",
     category: "Commerce",
     icon: "🛒",
-    statusLabel: "Store automation",
+    statusLabel:
+      "Store automation",
     description:
       "Answer product questions and assist customers from your store.",
     comingSoon: true,
@@ -89,52 +92,88 @@ const integrations: IntegrationDefinition[] = [
 export default function IntegrationGrid({
   records,
   businessId,
+  canUseGoogleCalendar = true,
 }: {
   records: IntegrationRecord[]
   businessId: string
+  canUseGoogleCalendar?: boolean
 }) {
   const categories = Array.from(
-    new Set(integrations.map((item) => item.category))
+    new Set(
+      integrations.map(
+        (item) => item.category
+      )
+    )
   )
 
   return (
     <div className="space-y-10">
-      {categories.map((category) => {
-        const categoryItems = integrations.filter(
-          (item) => item.category === category
-        )
+      {categories.map(
+        (category) => {
+          const categoryItems =
+            integrations.filter(
+              (item) =>
+                item.category ===
+                category
+            )
 
-        return (
-          <section key={category}>
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">
-                {category}
-              </h2>
+          return (
+            <section key={category}>
+              <div className="mb-5 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white">
+                  {category}
+                </h2>
 
-              <span className="text-sm text-slate-500">
-                {categoryItems.length} integrations
-              </span>
-            </div>
+                <span className="text-sm text-slate-500">
+                  {
+                    categoryItems.length
+                  }{" "}
+                  {categoryItems.length ===
+                  1
+                    ? "integration"
+                    : "integrations"}
+                </span>
+              </div>
 
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {categoryItems.map((definition) => {
-                const record = records.find(
-                  (item) => item.provider === definition.provider
-                )
+              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {categoryItems.map(
+                  (definition) => {
+                    const record =
+                      records.find(
+                        (item) =>
+                          item.provider ===
+                          definition.provider
+                      )
 
-                return (
-                  <IntegrationCard
-                    key={definition.provider}
-                    definition={definition}
-                    record={record}
-                    businessId={businessId}
-                  />
-                )
-              })}
-            </div>
-          </section>
-        )
-      })}
+                    return (
+                      <IntegrationCard
+                        key={
+                          definition.provider
+                        }
+                        definition={
+                          definition
+                        }
+                        record={
+                          record
+                        }
+                        businessId={
+                          businessId
+                        }
+                        canUseGoogleCalendar={
+                          definition.provider ===
+                          "google_calendar"
+                            ? canUseGoogleCalendar
+                            : true
+                        }
+                      />
+                    )
+                  }
+                )}
+              </div>
+            </section>
+          )
+        }
+      )}
     </div>
   )
 }

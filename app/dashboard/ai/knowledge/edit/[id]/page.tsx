@@ -2,8 +2,13 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
+import { businessCanUseFeature } from "@/lib/plans"
 import { PageHeader } from "@/components/dashboard/PageHeader"
-import { ArrowLeft, Brain, Save } from "lucide-react"
+import {
+  ArrowLeft,
+  Brain,
+  Save,
+} from "lucide-react"
 
 type PageProps = {
   params: Promise<{
@@ -27,25 +32,55 @@ export default async function EditKnowledgePage({
   searchParams,
 }: PageProps) {
   const { id } = await params
-  const business = await getCurrentBusiness()
-  const queryParams = await searchParams
-  const error = queryParams?.error
+
+  const business =
+    await getCurrentBusiness()
+
+  const queryParams =
+    await searchParams
+
+  const error =
+    queryParams?.error
 
   if (!business) {
     redirect("/auth/sign-in")
   }
 
-  const supabase = await createClient()
+  const canUseBusinessKnowledge =
+    businessCanUseFeature(
+      business,
+      "business_knowledge"
+    )
 
-  const { data: knowledge, error: loadError } = await supabase
+  if (!canUseBusinessKnowledge) {
+    redirect(
+      "/dashboard/ai/knowledge"
+    )
+  }
+
+  const supabase =
+    await createClient()
+
+  const {
+    data: knowledge,
+    error: loadError,
+  } = await supabase
     .from("business_knowledge")
-    .select("id, business_id, question, answer, created_at")
+    .select(
+      "id, business_id, question, answer, created_at"
+    )
     .eq("id", id)
-    .eq("business_id", business.id)
+    .eq(
+      "business_id",
+      business.id
+    )
     .maybeSingle<KnowledgeItem>()
 
   if (loadError) {
-    console.error("LOAD KNOWLEDGE ERROR:", loadError.message)
+    console.error(
+      "LOAD KNOWLEDGE ERROR:",
+      loadError.message
+    )
   }
 
   if (!knowledge) {
@@ -67,42 +102,90 @@ export default async function EditKnowledgePage({
     )
   }
 
-  async function updateKnowledge(formData: FormData) {
+  async function updateKnowledge(
+    formData: FormData
+  ) {
     "use server"
 
-    const business = await getCurrentBusiness()
+    const currentBusiness =
+      await getCurrentBusiness()
 
-    if (!business) {
+    if (!currentBusiness) {
       redirect("/auth/sign-in")
     }
 
-    const supabase = await createClient()
+    const canUpdateKnowledge =
+      businessCanUseFeature(
+        currentBusiness,
+        "business_knowledge"
+      )
 
-    const question = String(formData.get("question") || "").trim()
-    const answer = String(formData.get("answer") || "").trim()
-    const knowledgeId = String(formData.get("knowledgeId") || "").trim()
-
-    if (!question || !answer || !knowledgeId) {
+    if (!canUpdateKnowledge) {
       redirect(
-        `/dashboard/ai/knowledge/edit/${knowledgeId || id}?error=missing`
+        "/dashboard/ai/knowledge"
       )
     }
 
-    const { error } = await supabase
-      .from("business_knowledge")
-      .update({
-        question,
-        answer,
-      })
-      .eq("id", knowledgeId)
-      .eq("business_id", business.id)
+    const supabase =
+      await createClient()
 
-    if (error) {
-      console.error("UPDATE KNOWLEDGE ERROR:", error.message)
-      redirect(`/dashboard/ai/knowledge/edit/${knowledgeId}?error=save`)
+    const question = String(
+      formData.get("question") || ""
+    ).trim()
+
+    const answer = String(
+      formData.get("answer") || ""
+    ).trim()
+
+    const knowledgeId = String(
+      formData.get("knowledgeId") ||
+        ""
+    ).trim()
+
+    if (
+      !question ||
+      !answer ||
+      !knowledgeId
+    ) {
+      redirect(
+        `/dashboard/ai/knowledge/edit/${
+          knowledgeId || id
+        }?error=missing`
+      )
     }
 
-    redirect("/dashboard/ai/knowledge")
+    const { error } =
+      await supabase
+        .from(
+          "business_knowledge"
+        )
+        .update({
+          question,
+          answer,
+        })
+        .eq(
+          "id",
+          knowledgeId
+        )
+        .eq(
+          "business_id",
+          currentBusiness.id
+        )
+
+    if (error) {
+      console.error(
+        "UPDATE KNOWLEDGE ERROR:",
+        error.message
+      )
+
+      redirect(
+        `/dashboard/ai/knowledge/edit/${knowledgeId}?error=save`
+      )
+    }
+
+    redirect(
+      "/dashboard/ai/knowledge"
+    )
   }
 
   return (
@@ -134,9 +217,11 @@ export default async function EditKnowledgePage({
             </h1>
 
             <p className="mt-1 text-sm text-slate-400">
-              Editing knowledge only for{" "}
+              Editing knowledge only
+              for{" "}
               <span className="font-semibold text-white">
-                {business.business_name || "this business"}
+                {business.business_name ||
+                  "this business"}
               </span>
               .
             </p>
@@ -170,7 +255,9 @@ export default async function EditKnowledgePage({
           <input
             name="question"
             required
-            defaultValue={knowledge.question || ""}
+            defaultValue={
+              knowledge.question || ""
+            }
             className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950 p-4 text-white outline-none placeholder:text-slate-600 focus:border-slate-600"
           />
         </div>
@@ -184,14 +271,18 @@ export default async function EditKnowledgePage({
             name="answer"
             required
             rows={8}
-            defaultValue={knowledge.answer || ""}
+            defaultValue={
+              knowledge.answer || ""
+            }
             className="mt-2 w-full resize-none rounded-xl border border-slate-800 bg-slate-950 p-4 text-white outline-none placeholder:text-slate-600 focus:border-slate-600"
           />
         </div>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
-            This update is protected by both knowledge ID and business ID.
+            This update is protected by
+            both knowledge ID and
+            business ID.
           </p>
 
           <button

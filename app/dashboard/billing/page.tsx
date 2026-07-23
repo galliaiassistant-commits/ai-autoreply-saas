@@ -17,7 +17,51 @@ import {
   Clock3,
 } from "lucide-react"
 
-export default async function BillingPage() {
+type Plan = "starter" | "pro" | "business"
+
+type BillingPageProps = {
+  searchParams?: Promise<{
+    onboarding?: string | string[]
+    plan?: string | string[]
+  }>
+}
+
+function getFirstSearchValue(
+  value: string | string[] | undefined
+) {
+  return Array.isArray(value) ? value[0] : value
+}
+
+function normalizeSelectedPlan(
+  value: string | undefined
+): Plan | null {
+  const plan = value?.trim().toLowerCase()
+
+  if (
+    plan === "starter" ||
+    plan === "pro" ||
+    plan === "business"
+  ) {
+    return plan
+  }
+
+  return null
+}
+
+export default async function BillingPage({
+  searchParams,
+}: BillingPageProps) {
+  const params = searchParams
+    ? await searchParams
+    : undefined
+
+  const selectedPlan = normalizeSelectedPlan(
+    getFirstSearchValue(params?.plan)
+  )
+
+  const cameFromOnboarding =
+    getFirstSearchValue(params?.onboarding) === "complete"
+
   const business = await getCurrentBusiness()
 
   const paypalClientId =
@@ -143,6 +187,26 @@ export default async function BillingPage() {
         description="Manage plans, subscriptions, invoices, and payment setup."
       />
 
+      {cameFromOnboarding && selectedPlan && (
+        <section className="mt-6 rounded-2xl border border-cyan-400/40 bg-cyan-400/10 p-5">
+          <div className="flex items-start gap-4">
+            <div className="rounded-xl bg-cyan-400/20 p-3 text-cyan-300">
+              <CheckCircle2 size={22} />
+            </div>
+
+            <div>
+              <h2 className="font-bold text-cyan-200">
+                Setup complete — choose your plan
+              </h2>
+
+              <p className="mt-1 text-sm leading-relaxed text-slate-300">
+                You selected the {getPlanLabel(selectedPlan)} plan during signup. It is highlighted below. You can continue with it or choose a different plan before starting PayPal checkout.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {(isPaymentDue || aiIsSuspended) && (
         <BillingAlert
           aiIsSuspended={aiIsSuspended}
@@ -262,7 +326,7 @@ export default async function BillingPage() {
           <div className="mt-6 grid gap-5 lg:grid-cols-3">
             <PlanCard
               name="Starter"
-              price="$29.99"
+              price="$29.00"
               description="For small businesses getting started with AI customer support."
               features={[
                 "1 business workspace",
@@ -272,6 +336,8 @@ export default async function BillingPage() {
                 "Basic dashboard",
               ]}
               active={plan === "starter" && isActive}
+              selected={selectedPlan === "starter"}
+              highlighted={selectedPlan === "starter"}
             >
               <PayPalSubscriptionButton
                 plan="starter"
@@ -293,7 +359,12 @@ export default async function BillingPage() {
                 "Service management",
               ]}
               active={plan === "pro" && isActive}
-              highlighted
+              selected={selectedPlan === "pro"}
+              highlighted={
+                selectedPlan
+                  ? selectedPlan === "pro"
+                  : true
+              }
             >
               <PayPalSubscriptionButton
                 plan="pro"
@@ -315,6 +386,8 @@ export default async function BillingPage() {
                 "Expanded automation",
               ]}
               active={plan === "business" && isActive}
+              selected={selectedPlan === "business"}
+              highlighted={selectedPlan === "business"}
             >
               <PayPalSubscriptionButton
                 plan="business"
@@ -496,6 +569,14 @@ function formatBillingDate(
   }).format(date)
 }
 
+function getPlanLabel(plan: Plan) {
+  return plan === "starter"
+    ? "Starter"
+    : plan === "pro"
+      ? "Pro"
+      : "Business"
+}
+
 function BillingAlert({
   aiIsSuspended,
   isPaymentDue,
@@ -631,6 +712,7 @@ function PlanCard({
   description,
   features,
   active,
+  selected,
   highlighted,
   children,
 }: {
@@ -639,6 +721,7 @@ function PlanCard({
   description: string
   features: string[]
   active?: boolean
+  selected?: boolean
   highlighted?: boolean
   children: ReactNode
 }) {
@@ -667,17 +750,31 @@ function PlanCard({
           </p>
         </div>
 
-        {active && (
-          <span
-            className={
-              highlighted
-                ? "rounded-full bg-black px-3 py-1 text-xs font-bold text-white"
-                : "rounded-full bg-green-500/20 px-3 py-1 text-xs font-bold text-green-400"
-            }
-          >
-            Current
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {selected && (
+            <span
+              className={
+                highlighted
+                  ? "rounded-full bg-cyan-600 px-3 py-1 text-xs font-bold text-white"
+                  : "rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-bold text-cyan-300"
+              }
+            >
+              Selected during signup
+            </span>
+          )}
+
+          {active && (
+            <span
+              className={
+                highlighted
+                  ? "rounded-full bg-black px-3 py-1 text-xs font-bold text-white"
+                  : "rounded-full bg-green-500/20 px-3 py-1 text-xs font-bold text-green-400"
+              }
+            >
+              Current
+            </span>
+          )}
+        </div>
       </div>
 
       <p className="mt-6 text-4xl font-bold">

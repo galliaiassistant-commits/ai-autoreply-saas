@@ -1,6 +1,8 @@
+import Link from "next/link"
 import type { ReactNode } from "react"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
+import { businessCanUseFeature } from "@/lib/plans"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import {
   Activity,
@@ -11,6 +13,7 @@ import {
   AlertCircle,
   TrendingUp,
   Bot,
+  LockKeyhole,
 } from "lucide-react"
 
 export default async function AnalyticsPage() {
@@ -29,6 +32,27 @@ export default async function AnalyticsPage() {
     )
   }
 
+  const canUseBookings =
+    businessCanUseFeature(
+      business,
+      "appointment_bookings"
+    )
+
+  const canManageServices =
+    businessCanUseFeature(
+      business,
+      "service_management"
+    )
+
+  const canUseGoogleCalendar =
+    businessCanUseFeature(
+      business,
+      "google_calendar"
+    )
+
+  const supabase =
+    await createClient()
+
   const [
     { data: customers },
     { data: bookings },
@@ -42,11 +66,16 @@ export default async function AnalyticsPage() {
       .eq("business_id", business.id)
       .order("created_at", { ascending: false }),
 
-    supabase
-      .from("bookings")
-      .select("*")
-      .eq("business_id", business.id)
-      .order("created_at", { ascending: false }),
+    canUseBookings
+      ? supabase
+          .from("bookings")
+          .select("*")
+          .eq("business_id", business.id)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({
+          data: [],
+          error: null,
+        }),
 
     supabase
       .from("messages")
@@ -54,10 +83,15 @@ export default async function AnalyticsPage() {
       .eq("business_id", business.id)
       .order("created_at", { ascending: false }),
 
-    supabase
-      .from("business_services")
-      .select("*")
-      .eq("business_id", business.id),
+    canManageServices
+      ? supabase
+          .from("business_services")
+          .select("*")
+          .eq("business_id", business.id)
+      : Promise.resolve({
+          data: [],
+          error: null,
+        }),
 
     supabase
       .from("business_integrations")
@@ -96,7 +130,13 @@ export default async function AnalyticsPage() {
   ).length
 
   const connectedIntegrations = safeIntegrations.filter(
-    (integration) => integration.connected
+    (integration) =>
+      integration.connected &&
+      (
+        integration.provider !==
+          "google_calendar" ||
+        canUseGoogleCalendar
+      )
   ).length
 
   const completionRate =
@@ -131,12 +171,19 @@ export default async function AnalyticsPage() {
           icon={<Users size={20} />}
         />
 
-        <MetricCard
-          title="Bookings"
-          value={safeBookings.length}
-          helper="All appointment records"
-          icon={<CalendarDays size={20} />}
-        />
+        {canUseBookings ? (
+          <MetricCard
+            title="Bookings"
+            value={safeBookings.length}
+            helper="All appointment records"
+            icon={<CalendarDays size={20} />}
+          />
+        ) : (
+          <LockedMetricCard
+            title="Bookings"
+            icon={<CalendarDays size={20} />}
+          />
+        )}
 
         <MetricCard
           title="Messages"
@@ -154,19 +201,33 @@ export default async function AnalyticsPage() {
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-3">
-        <ScoreCard
-          title="Booking Rate"
-          value={`${bookingRate}%`}
-          description="Booked appointments compared to total customers."
-          icon={<TrendingUp size={18} />}
-        />
+        {canUseBookings ? (
+          <ScoreCard
+            title="Booking Rate"
+            value={`${bookingRate}%`}
+            description="Booked appointments compared to total customers."
+            icon={<TrendingUp size={18} />}
+          />
+        ) : (
+          <LockedScoreCard
+            title="Booking Rate"
+            icon={<TrendingUp size={18} />}
+          />
+        )}
 
-        <ScoreCard
-          title="Completion Rate"
-          value={`${completionRate}%`}
-          description="Completed bookings compared to all bookings."
-          icon={<CheckCircle2 size={18} />}
-        />
+        {canUseBookings ? (
+          <ScoreCard
+            title="Completion Rate"
+            value={`${completionRate}%`}
+            description="Completed bookings compared to all bookings."
+            icon={<CheckCircle2 size={18} />}
+          />
+        ) : (
+          <LockedScoreCard
+            title="Completion Rate"
+            icon={<CheckCircle2 size={18} />}
+          />
+        )}
 
         <ScoreCard
           title="AI Reply Ratio"
@@ -177,6 +238,7 @@ export default async function AnalyticsPage() {
       </div>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_380px]">
+        {canUseBookings ? (
         <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
           <h2 className="text-xl font-bold text-white">
             Booking Breakdown
@@ -212,6 +274,12 @@ export default async function AnalyticsPage() {
             />
           </div>
         </section>
+        ) : (
+          <UpgradePanel
+            title="Booking Breakdown"
+            message="Booking analytics are available on the Pro and Business plans."
+          />
+        )}
 
         <aside className="space-y-6">
           <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
@@ -220,24 +288,37 @@ export default async function AnalyticsPage() {
             </h2>
 
             <div className="mt-5 space-y-4">
-              <HealthRow
-                label="Active Services"
-                value={safeServices.filter((service) => service.is_active).length}
-              />
+              {canManageServices ? (
+                <HealthRow
+                  label="Active Services"
+                  value={safeServices.filter((service) => service.is_active).length}
+                />
+              ) : (
+                <LockedHealthRow
+                  label="Active Services"
+                />
+              )}
 
               <HealthRow
                 label="Connected Integrations"
                 value={connectedIntegrations}
               />
 
-              <HealthRow
-                label="Missing Detail Bookings"
-                value={missingDetails}
-                warning={missingDetails > 0}
-              />
+              {canUseBookings ? (
+                <HealthRow
+                  label="Missing Detail Bookings"
+                  value={missingDetails}
+                  warning={missingDetails > 0}
+                />
+              ) : (
+                <LockedHealthRow
+                  label="Booking Health"
+                />
+              )}
             </div>
           </section>
 
+          {canUseBookings ? (
           <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
             <h2 className="text-lg font-bold text-white">
               Top Services
@@ -268,6 +349,12 @@ export default async function AnalyticsPage() {
               )}
             </div>
           </section>
+          ) : (
+            <UpgradePanel
+              title="Top Services"
+              message="Service booking trends are available on the Pro and Business plans."
+            />
+          )}
         </aside>
       </div>
 
@@ -294,15 +381,22 @@ export default async function AnalyticsPage() {
             }))}
           />
 
-          <ActivityList
-            title="Recent Bookings"
-            items={safeBookings.slice(0, 5).map((booking) => ({
-              id: booking.id,
-              title: booking.service || "Service not provided",
-              description: booking.status || "missing_details",
-              date: booking.created_at,
-            }))}
-          />
+          {canUseBookings ? (
+            <ActivityList
+              title="Recent Bookings"
+              items={safeBookings.slice(0, 5).map((booking) => ({
+                id: booking.id,
+                title: booking.service || "Service not provided",
+                description: booking.status || "missing_details",
+                date: booking.created_at,
+              }))}
+            />
+          ) : (
+            <UpgradePanel
+              title="Recent Bookings"
+              message="Recent booking activity is available on the Pro and Business plans."
+            />
+          )}
         </div>
       </section>
     </div>
@@ -503,5 +597,103 @@ function EmptyPanel({ message }: { message: string }) {
     <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
       {message}
     </div>
+  )
+}
+
+function LockedMetricCard({
+  title,
+  icon,
+}: {
+  title: string
+  icon: ReactNode
+}) {
+  return (
+    <Link
+      href="/dashboard/billing"
+      className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-6 transition hover:border-cyan-400/40"
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-cyan-100">
+          {title}
+        </p>
+
+        <div className="text-cyan-300">
+          {icon}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 text-sm font-bold text-cyan-300">
+        <LockKeyhole size={17} />
+        Pro feature
+      </div>
+    </Link>
+  )
+}
+
+function LockedScoreCard({
+  title,
+  icon,
+}: {
+  title: string
+  icon: ReactNode
+}) {
+  return (
+    <LockedMetricCard
+      title={title}
+      icon={icon}
+    />
+  )
+}
+
+function LockedHealthRow({
+  label,
+}: {
+  label: string
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+      <p className="text-sm font-semibold text-cyan-100">
+        {label}
+      </p>
+
+      <div className="flex items-center gap-2 text-cyan-300">
+        <LockKeyhole size={17} />
+        <span className="text-xs font-bold">
+          Pro
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function UpgradePanel({
+  title,
+  message,
+}: {
+  title: string
+  message: string
+}) {
+  return (
+    <section className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-6">
+      <LockKeyhole
+        size={20}
+        className="text-cyan-300"
+      />
+
+      <h2 className="mt-4 font-bold text-white">
+        {title}
+      </h2>
+
+      <p className="mt-2 text-sm leading-relaxed text-slate-300">
+        {message}
+      </p>
+
+      <Link
+        href="/dashboard/billing"
+        className="mt-4 inline-flex text-sm font-bold text-cyan-300 transition hover:text-cyan-200"
+      >
+        Upgrade to Pro
+      </Link>
+    </section>
   )
 }

@@ -11,29 +11,53 @@ import { Sidebar } from "@/components/dashboard/Sidebar"
 import { Topbar } from "@/components/dashboard/Topbar"
 import AuthGuard from "@/components/auth/AuthGuard"
 
+type Workspace = {
+  id: string
+  business_name:
+    | string
+    | null
+}
+
 type DashboardShellProps = {
   children: React.ReactNode
+  subscriptionPlan?: string
   subscriptionStatus: string
   paymentDueAt: string | null
-  billingGraceEndsAt: string | null
+  billingGraceEndsAt:
+    | string
+    | null
   aiSuspendedAt: string | null
+  businesses?: Workspace[]
+  currentBusinessId?:
+    | string
+    | null
+  canManageWorkspaces?:
+    | boolean
 }
 
 export default function DashboardShell({
   children,
+  subscriptionPlan = "free",
   subscriptionStatus,
   paymentDueAt,
   billingGraceEndsAt,
   aiSuspendedAt,
+  businesses = [],
+  currentBusinessId = null,
+  canManageWorkspaces = false,
 }: DashboardShellProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [
+    sidebarOpen,
+    setSidebarOpen,
+  ] = useState(true)
 
-  const billingState = getBillingState({
-    subscriptionStatus,
-    paymentDueAt,
-    billingGraceEndsAt,
-    aiSuspendedAt,
-  })
+  const billingState =
+    getBillingState({
+      subscriptionStatus,
+      paymentDueAt,
+      billingGraceEndsAt,
+      aiSuspendedAt,
+    })
 
   return (
     <AuthGuard>
@@ -41,34 +65,105 @@ export default function DashboardShell({
         <Sidebar
           open={sidebarOpen}
           setOpen={setSidebarOpen}
+          subscriptionPlan={
+            subscriptionPlan
+          }
         />
 
         <div
-          className={`min-h-screen transition-all duration-300 ${
-            sidebarOpen ? "md:ml-72" : "md:ml-0"
+          className={`flex min-h-screen flex-col transition-all duration-300 ${
+            sidebarOpen
+              ? "md:ml-72"
+              : "md:ml-0"
           }`}
         >
           <Topbar
-            sidebarOpen={sidebarOpen}
-            setSidebarOpen={setSidebarOpen}
+            sidebarOpen={
+              sidebarOpen
+            }
+            setSidebarOpen={
+              setSidebarOpen
+            }
+            businesses={
+              businesses
+            }
+            currentBusinessId={
+              currentBusinessId
+            }
+            canManageWorkspaces={
+              canManageWorkspaces
+            }
           />
 
           {billingState.showBanner && (
             <GlobalBillingBanner
-              suspended={billingState.suspended}
-              daysRemaining={billingState.daysRemaining}
-              paymentDueAt={billingState.paymentDueAt}
-              graceEndsAt={billingState.graceEndsAt}
-              status={billingState.status}
+              suspended={
+                billingState.suspended
+              }
+              daysRemaining={
+                billingState.daysRemaining
+              }
+              paymentDueAt={
+                billingState.paymentDueAt
+              }
+              graceEndsAt={
+                billingState.graceEndsAt
+              }
+              status={
+                billingState.status
+              }
             />
           )}
 
-          <main className="p-6">
+          <main className="flex-1 p-6">
             {children}
           </main>
+
+          <DashboardFooter />
         </div>
       </div>
     </AuthGuard>
+  )
+}
+
+function DashboardFooter() {
+  return (
+    <footer className="border-t border-slate-800 px-6 py-5">
+      <div className="flex flex-col gap-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+        <p>
+          ©{" "}
+          {new Date().getFullYear()}{" "}
+          Jhyro AI. All rights
+          reserved.
+        </p>
+
+        <nav
+          aria-label="Legal"
+          className="flex flex-wrap items-center gap-x-5 gap-y-2"
+        >
+          <Link
+            href="/privacy"
+            className="transition hover:text-slate-300"
+          >
+            Privacy Policy
+          </Link>
+
+          <Link
+            href="/terms"
+            className="transition hover:text-slate-300"
+          >
+            Terms of Service
+          </Link>
+
+          <Link
+            href="/data-deletion"
+            className="transition hover:text-slate-300"
+          >
+            Data Deletion
+          </Link>
+        </nav>
+      </div>
+    </footer>
   )
 }
 
@@ -80,7 +175,9 @@ function getBillingState({
 }: {
   subscriptionStatus: string
   paymentDueAt: string | null
-  billingGraceEndsAt: string | null
+  billingGraceEndsAt:
+    | string
+    | null
   aiSuspendedAt: string | null
 }) {
   const status =
@@ -95,50 +192,70 @@ function getBillingState({
     status === "expired" ||
     status === "suspended"
 
-  const graceDate = billingGraceEndsAt
-    ? new Date(billingGraceEndsAt)
-    : null
+  const graceDate =
+    billingGraceEndsAt
+      ? new Date(
+          billingGraceEndsAt
+        )
+      : null
 
   const graceIsValid =
     Boolean(
       graceDate &&
-      !Number.isNaN(graceDate.getTime())
+        !Number.isNaN(
+          graceDate.getTime()
+        )
     )
 
   const graceHasEnded =
     Boolean(
       graceIsValid &&
-      graceDate &&
-      Date.now() >= graceDate.getTime()
+        graceDate &&
+        Date.now() >=
+          graceDate.getTime()
     )
 
   const suspended =
     Boolean(aiSuspendedAt) ||
     isStopped ||
-    (isPaymentDue && graceHasEnded)
+    (
+      isPaymentDue &&
+      graceHasEnded
+    )
 
-  const dayMs = 1000 * 60 * 60 * 24
+  const dayMs =
+    1000 * 60 * 60 * 24
 
   const daysRemaining =
-    graceIsValid && graceDate && !graceHasEnded
+    graceIsValid &&
+    graceDate &&
+    !graceHasEnded
       ? Math.max(
           1,
           Math.ceil(
-            (graceDate.getTime() - Date.now()) /
-              dayMs
+            (
+              graceDate.getTime() -
+              Date.now()
+            ) / dayMs
           )
         )
       : 0
 
   return {
     status,
-    showBanner: isPaymentDue || suspended,
+    showBanner:
+      isPaymentDue ||
+      suspended,
     suspended,
     daysRemaining,
-    paymentDueAt: formatBillingDate(paymentDueAt),
-    graceEndsAt: formatBillingDate(
-      billingGraceEndsAt
-    ),
+    paymentDueAt:
+      formatBillingDate(
+        paymentDueAt
+      ),
+    graceEndsAt:
+      formatBillingDate(
+        billingGraceEndsAt
+      ),
   }
 }
 
@@ -176,7 +293,9 @@ function GlobalBillingBanner({
               {suspended ? (
                 <Lock size={22} />
               ) : (
-                <AlertCircle size={22} />
+                <AlertCircle
+                  size={22}
+                />
               )}
             </div>
 
@@ -195,25 +314,37 @@ function GlobalBillingBanner({
 
               <p className="mt-1 text-sm leading-relaxed text-slate-300">
                 {suspended
-                  ? status === "cancelled" ||
-                    status === "expired" ||
-                    status === "suspended"
+                  ? status ===
+                      "cancelled" ||
+                    status ===
+                      "expired" ||
+                    status ===
+                      "suspended"
                     ? `Your subscription is ${status}. Renew your PayPal plan to restore automatic replies.`
                     : "The 7-day grace period has ended. Renew your PayPal subscription to restore automatic WhatsApp replies."
                   : `Your PayPal payment is overdue. Jhyro AI remains active for ${daysRemaining} more day${
-                      daysRemaining === 1 ? "" : "s"
+                      daysRemaining ===
+                      1
+                        ? ""
+                        : "s"
                     }.`}
               </p>
 
               <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-400">
                 <span className="flex items-center gap-2">
-                  <AlertCircle size={14} />
-                  Due: {paymentDueAt}
+                  <AlertCircle
+                    size={14}
+                  />
+                  Due:{" "}
+                  {paymentDueAt}
                 </span>
 
                 <span className="flex items-center gap-2">
-                  <Clock3 size={14} />
-                  Grace ends: {graceEndsAt}
+                  <Clock3
+                    size={14}
+                  />
+                  Grace ends:{" "}
+                  {graceEndsAt}
                 </span>
               </div>
             </div>
@@ -242,15 +373,24 @@ function formatBillingDate(
     return "Not set"
   }
 
-  const date = new Date(value)
+  const date =
+    new Date(value)
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return "Invalid date"
   }
 
-  return new Intl.DateTimeFormat("en-JM", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "America/Jamaica",
-  }).format(date)
+  return new Intl.DateTimeFormat(
+    "en-JM",
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone:
+        "America/Jamaica",
+    }
+  ).format(date)
 }

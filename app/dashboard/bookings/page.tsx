@@ -1,5 +1,7 @@
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentBusiness } from "@/lib/auth"
+import { businessCanUseFeature } from "@/lib/plans"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import { StatusBadge } from "@/components/dashboard/StatusBadge"
 import BookingActions from "../BookingActions"
@@ -8,10 +10,12 @@ import {
   CalendarDays,
   CheckCircle2,
   AlertCircle,
+  LockKeyhole,
 } from "lucide-react"
 
 export default async function BookingsPage() {
-  const business = await getCurrentBusiness()
+  const business =
+    await getCurrentBusiness()
 
   if (!business) {
     return (
@@ -22,55 +26,137 @@ export default async function BookingsPage() {
         />
 
         <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
-          No business found for this account.
+          No business found for this
+          account.
         </div>
       </div>
     )
   }
 
-  const supabase = await createClient()
+  const canUseBookings =
+    businessCanUseFeature(
+      business,
+      "appointment_bookings"
+    )
+
+  if (!canUseBookings) {
+    return (
+      <div>
+        <PageHeader
+          title="Bookings"
+          description="Manage appointments created through Jhyro AI."
+        />
+
+        <section className="mt-6 rounded-3xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 to-slate-950 p-8">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-400 text-slate-950">
+            <LockKeyhole size={26} />
+          </div>
+
+          <p className="mt-6 text-sm font-bold uppercase tracking-[0.2em] text-cyan-300">
+            Pro feature
+          </p>
+
+          <h2 className="mt-3 text-2xl font-bold text-white">
+            Unlock Appointment Bookings
+          </h2>
+
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-300">
+            Upgrade to Pro or Business
+            to let Jhyro AI create
+            appointments, manage booking
+            statuses, display your booking
+            calendar, and prevent
+            scheduling conflicts.
+          </p>
+
+          <Link
+            href="/dashboard/billing"
+            className="mt-6 inline-flex rounded-xl bg-cyan-400 px-5 py-3 font-bold text-slate-950 transition hover:bg-cyan-300"
+          >
+            Upgrade to Pro
+          </Link>
+        </section>
+      </div>
+    )
+  }
+
+  const supabase =
+    await createClient()
 
   const [
-    { data: bookings, error: bookingsError },
-    { data: services, error: servicesError },
+    {
+      data: bookings,
+      error: bookingsError,
+    },
+    {
+      data: services,
+      error: servicesError,
+    },
   ] = await Promise.all([
     supabase
       .from("bookings")
       .select("*")
-      .eq("business_id", business.id)
-      .order("created_at", { ascending: false }),
+      .eq(
+        "business_id",
+        business.id
+      )
+      .order("created_at", {
+        ascending: false,
+      }),
 
     supabase
       .from("business_services")
       .select("*")
-      .eq("business_id", business.id)
-      .order("name", { ascending: true }),
+      .eq(
+        "business_id",
+        business.id
+      )
+      .order("name", {
+        ascending: true,
+      }),
   ])
 
   if (bookingsError) {
-    console.error("BOOKINGS PAGE BOOKINGS ERROR:", bookingsError)
+    console.error(
+      "BOOKINGS PAGE BOOKINGS ERROR:",
+      bookingsError
+    )
   }
 
   if (servicesError) {
-    console.error("BOOKINGS PAGE SERVICES ERROR:", servicesError)
+    console.error(
+      "BOOKINGS PAGE SERVICES ERROR:",
+      servicesError
+    )
   }
 
-  const safeBookings = bookings || []
-  const safeServices = services || []
+  const safeBookings =
+    bookings || []
 
-  const totalBookings = safeBookings.length
+  const safeServices =
+    services || []
+
+  const totalBookings =
+    safeBookings.length
 
   const bookedBookings =
-    safeBookings.filter((booking) => booking.status === "booked")
-      .length
+    safeBookings.filter(
+      (booking) =>
+        booking.status === "booked"
+    ).length
 
   const completedBookings =
-    safeBookings.filter((booking) => booking.status === "completed")
-      .length
+    safeBookings.filter(
+      (booking) =>
+        booking.status ===
+        "completed"
+    ).length
 
   const missingDetails =
     safeBookings.filter(
-      (booking) => booking.status === "missing_details"
+      (booking) =>
+        booking.status ===
+        "missing_details"
     ).length
 
   return (
@@ -84,25 +170,41 @@ export default async function BookingsPage() {
         <BookingStat
           title="Total"
           value={totalBookings}
-          icon={<CalendarDays size={20} />}
+          icon={
+            <CalendarDays
+              size={20}
+            />
+          }
         />
 
         <BookingStat
           title="Booked"
           value={bookedBookings}
-          icon={<CalendarDays size={20} />}
+          icon={
+            <CalendarDays
+              size={20}
+            />
+          }
         />
 
         <BookingStat
           title="Completed"
           value={completedBookings}
-          icon={<CheckCircle2 size={20} />}
+          icon={
+            <CheckCircle2
+              size={20}
+            />
+          }
         />
 
         <BookingStat
           title="Missing Details"
           value={missingDetails}
-          icon={<AlertCircle size={20} />}
+          icon={
+            <AlertCircle
+              size={20}
+            />
+          }
         />
       </div>
 
@@ -112,50 +214,63 @@ export default async function BookingsPage() {
         </h2>
 
         <div className="mt-6 space-y-4">
-          {safeBookings.length > 0 ? (
-            safeBookings.map((booking) => (
-              <div
-                key={booking.id}
-                className="rounded-2xl bg-slate-800 p-5"
-              >
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">
-                      {booking.service || "Service not provided"}
-                    </h3>
+          {safeBookings.length >
+          0 ? (
+            safeBookings.map(
+              (booking) => (
+                <div
+                  key={booking.id}
+                  className="rounded-2xl bg-slate-800 p-5"
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">
+                        {booking.service ||
+                          "Service not provided"}
+                      </h3>
 
-                    <p className="mt-1 text-sm text-slate-400">
-                      {booking.booking_time
-                        ? new Date(
-                            booking.booking_time
-                          ).toLocaleString()
-                        : "Missing date and time"}
-                    </p>
+                      <p className="mt-1 text-sm text-slate-400">
+                        {booking.booking_time
+                          ? new Date(
+                              booking.booking_time
+                            ).toLocaleString()
+                          : "Missing date and time"}
+                      </p>
 
-                    <p className="mt-1 text-xs text-slate-500">
-                      Created{" "}
-                      {booking.created_at
-                        ? new Date(
-                            booking.created_at
-                          ).toLocaleDateString()
-                        : "Unknown"}
-                    </p>
-                  </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Created{" "}
+                        {booking.created_at
+                          ? new Date(
+                              booking.created_at
+                            ).toLocaleDateString()
+                          : "Unknown"}
+                      </p>
+                    </div>
 
-                  <div className="flex items-center gap-4">
-                    <StatusBadge
-                      status={booking.status || "missing_details"}
-                    />
+                    <div className="flex items-center gap-4">
+                      <StatusBadge
+                        status={
+                          booking.status ||
+                          "missing_details"
+                        }
+                      />
 
-                    <BookingActions
-                      bookingId={booking.id}
-                      businessId={business.id}
-                      status={booking.status}
-                    />
+                      <BookingActions
+                        bookingId={
+                          booking.id
+                        }
+                        businessId={
+                          business.id
+                        }
+                        status={
+                          booking.status
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              )
+            )
           ) : (
             <div className="rounded-2xl border border-dashed border-slate-700 p-8 text-center text-slate-400">
               No bookings yet.

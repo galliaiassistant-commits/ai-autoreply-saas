@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { deleteKnowledgeItem } from "./actions"
 
 export default function DeleteKnowledgeButton({
   id,
@@ -12,27 +12,50 @@ export default function DeleteKnowledgeButton({
   businessId: string
 }) {
   const router = useRouter()
-  const [deleting, setDeleting] = useState(false)
+
+  const [deleting, setDeleting] =
+    useState(false)
 
   async function deleteKnowledge() {
-    if (!confirm("Delete this AI knowledge item?")) return
+    const confirmed = window.confirm(
+      "Delete this AI knowledge item?"
+    )
 
-    setDeleting(true)
-
-    const { error } = await supabase
-      .from("business_knowledge")
-      .delete()
-      .eq("id", id)
-      .eq("business_id", businessId)
-
-    setDeleting(false)
-
-    if (error) {
-      alert(error.message)
+    if (!confirmed) {
       return
     }
 
-    router.refresh()
+    setDeleting(true)
+
+    try {
+      const result =
+        await deleteKnowledgeItem({
+          id,
+          businessId,
+        })
+
+      if (!result.success) {
+        alert(
+          result.error ||
+            "Could not delete this knowledge item."
+        )
+
+        return
+      }
+
+      router.refresh()
+    } catch (error) {
+      console.error(
+        "DELETE KNOWLEDGE BUTTON ERROR:",
+        error
+      )
+
+      alert(
+        "Could not delete this knowledge item."
+      )
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -42,7 +65,9 @@ export default function DeleteKnowledgeButton({
       disabled={deleting}
       className="rounded-lg bg-red-500/10 px-3 py-1 text-sm text-red-400 hover:bg-red-500/20 disabled:opacity-50"
     >
-      {deleting ? "Deleting..." : "Delete"}
+      {deleting
+        ? "Deleting..."
+        : "Delete"}
     </button>
   )
 }
