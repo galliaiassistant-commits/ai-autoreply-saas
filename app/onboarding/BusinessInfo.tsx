@@ -53,12 +53,14 @@ export default function BusinessInfo({
     }
 
     const payload = {
-      business_name: businessName,
-      phone,
-      address,
-      website,
-      owner_id: user.id,
-    }
+  business_name: businessName,
+  phone,
+  address,
+  website,
+  owner_id: user.id,
+  subscription_plan: "free",
+  subscription_status: "trialing",
+}
 
     if (businessId) {
       const { error } = await supabase

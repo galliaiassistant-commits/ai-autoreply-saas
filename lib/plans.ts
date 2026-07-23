@@ -110,7 +110,7 @@ export function normalizePlan(value: unknown): PlanName {
 }
 
 export function normalizeSubscriptionStatus(value: unknown) {
-  return String(value || "inactive")
+  return String(value || "trialing")
     .trim()
     .toLowerCase()
 }
