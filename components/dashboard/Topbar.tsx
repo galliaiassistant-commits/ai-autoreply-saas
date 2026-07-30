@@ -7,165 +7,425 @@ import {
   LayoutDashboard,
   Menu,
   ShieldCheck,
+  X,
 } from "lucide-react"
+
 import AccountMenu from "@/components/dashboard/AccountMenu"
 import NotificationsMenu from "@/components/dashboard/NotificationsMenu"
 import WorkspaceSwitcher from "@/components/dashboard/WorkspaceSwitcher"
 
+
 type Workspace = {
-  id: string
-  business_name: string | null
+  id:string
+  business_name:string|null
 }
 
+
 type TopbarProps = {
-  sidebarOpen: boolean
-  setSidebarOpen: (open: boolean) => void
-  businesses?: Workspace[]
-  currentBusinessId?: string | null
-  canManageWorkspaces?: boolean
+  sidebarOpen:boolean
+  setSidebarOpen:(open:boolean)=>void
+  businesses?:Workspace[]
+  currentBusinessId?:string|null
+  canManageWorkspaces?:boolean
 }
+
 
 export function Topbar({
   sidebarOpen,
   setSidebarOpen,
-  businesses = [],
-  currentBusinessId = null,
-  canManageWorkspaces = false,
-}: TopbarProps) {
-  const [isAdmin, setIsAdmin] = useState(false)
+  businesses=[],
+  currentBusinessId=null,
+  canManageWorkspaces=false,
+}:TopbarProps){
 
-  useEffect(() => {
-    let active = true
 
-    async function checkAdmin() {
-      try {
-        const response = await fetch(
-          "/api/admin/status",
-          {
-            cache: "no-store",
-          }
-        )
+  const [isAdmin,setIsAdmin] =
+    useState(false)
 
-        if (!response.ok) return
+
+  useEffect(()=>{
+
+    let mounted=true
+
+
+    async function checkAdmin(){
+
+      try{
+
+        const res =
+          await fetch(
+            "/api/admin/status",
+            {
+              cache:"no-store"
+            }
+          )
+
+
+        if(!res.ok)
+          return
+
 
         const data =
-          (await response.json()) as {
-            isAdmin?: boolean
-          }
+          await res.json()
 
-        if (active) {
+
+        if(mounted){
           setIsAdmin(
             data.isAdmin === true
           )
         }
-      } catch {
-        if (active) {
+
+
+      }catch{
+
+        if(mounted){
           setIsAdmin(false)
         }
+
       }
+
     }
+
 
     checkAdmin()
 
-    return () => {
-      active = false
+
+    return ()=>{
+      mounted=false
     }
-  }, [])
+
+
+  },[])
+
+
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/80 px-4 py-3 backdrop-blur-xl sm:px-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
+
+    <header
+      className="
+      sticky
+      top-0
+      z-30
+      border-b
+      border-slate-800
+      bg-[#050816]/80
+      backdrop-blur-xl
+      "
+    >
+
+      <div
+        className="
+        flex
+        h-20
+        items-center
+        justify-between
+        gap-4
+        px-4
+        sm:px-6
+        lg:px-8
+        "
+      >
+
+
+        {/* Left */}
+
+        <div className="
+        flex
+        items-center
+        gap-4
+        min-w-0
+        ">
+
+
           <button
-            type="button"
-            onClick={() =>
-              setSidebarOpen(!sidebarOpen)
+            onClick={()=>
+              setSidebarOpen(
+                !sidebarOpen
+              )
             }
-            aria-label={
-              sidebarOpen
-                ? "Close sidebar"
-                : "Open sidebar"
-            }
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-800 bg-slate-900 text-slate-300 transition hover:bg-slate-800"
+            className="
+            flex
+            h-11
+            w-11
+            items-center
+            justify-center
+            rounded-2xl
+            border
+            border-slate-800
+            bg-slate-900
+            text-slate-300
+            hover:bg-slate-800
+            transition
+            "
           >
-            <Menu size={20} />
+
+            {sidebarOpen
+              ?
+              <X size={20}/>
+              :
+              <Menu size={20}/>
+            }
+
           </button>
 
-          <div className="hidden md:block">
-            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-600">
+
+
+          <div className="
+          hidden
+          md:block
+          ">
+
+            <p className="
+            text-xs
+            uppercase
+            tracking-[0.3em]
+            text-slate-600
+            ">
               Jhyro AI
             </p>
 
-            <h1 className="text-xl font-bold text-white">
+
+            <h1 className="
+            text-xl
+            font-bold
+            text-white
+            ">
               Business Dashboard
             </h1>
+
           </div>
 
-          <div className="md:hidden">
-            <p className="text-sm font-bold text-white">
-              Jhyro AI
-            </p>
-          </div>
+
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+
+
+
+        {/* Right */}
+
+        <div className="
+        flex
+        items-center
+        gap-2
+        sm:gap-3
+        "
+        >
+
+
           {canManageWorkspaces &&
-            businesses.length > 0 && (
-              <div className="hidden lg:block">
-                <WorkspaceSwitcher
-                  businesses={businesses}
-                  currentBusinessId={
-                    currentBusinessId
-                  }
-                />
-              </div>
-            )}
+          businesses.length > 0 && (
+
+            <div className="
+            hidden
+            lg:block
+            ">
+
+              <WorkspaceSwitcher
+                businesses={businesses}
+                currentBusinessId={
+                  currentBusinessId
+                }
+              />
+
+            </div>
+
+          )}
+
+
 
           <Link
             href="/chat"
-            title="Open Jhyro AI Chat"
-            className="hidden h-11 items-center gap-2 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 text-sm font-semibold text-blue-200 transition hover:bg-blue-400/20 md:inline-flex"
+            className="
+            hidden
+            md:flex
+            h-11
+            items-center
+            gap-2
+            rounded-xl
+            border
+            border-cyan-400/20
+            bg-cyan-400/10
+            px-4
+            text-sm
+            font-semibold
+            text-cyan-200
+            hover:bg-cyan-400/20
+            transition
+            "
           >
-            <Bot size={17} />
+
+            <Bot size={17}/>
             AI Chat
+
           </Link>
 
+
+
           {isAdmin && (
+
             <Link
               href="/admin"
-              title="Open Admin Dashboard"
-              className="hidden h-11 items-center gap-2 rounded-xl border border-purple-400/20 bg-purple-400/10 px-3 text-sm font-semibold text-purple-200 transition hover:bg-purple-400/20 md:inline-flex"
+              className="
+              hidden
+              md:flex
+              h-11
+              items-center
+              gap-2
+              rounded-xl
+              border
+              border-purple-400/20
+              bg-purple-400/10
+              px-4
+              text-sm
+              font-semibold
+              text-purple-200
+              "
             >
-              <ShieldCheck size={17} />
+
+              <ShieldCheck size={17}/>
               Admin
+
             </Link>
+
           )}
+
+
 
           <Link
             href="/dashboard"
-            title="Business Dashboard"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 transition hover:bg-slate-800 md:hidden"
+            className="
+            flex
+            md:hidden
+            h-11
+            w-11
+            items-center
+            justify-center
+            rounded-xl
+            border
+            border-slate-800
+            bg-slate-900
+            "
           >
-            <LayoutDashboard size={18} />
+
+            <LayoutDashboard size={18}/>
+
           </Link>
+
+
 
           <NotificationsMenu />
 
           <AccountMenu />
+
+
         </div>
+
+
       </div>
 
+
+
+      {/* Mobile workspace */}
+
       {canManageWorkspaces &&
-        businesses.length > 0 && (
-          <div className="mt-3 hidden sm:block lg:hidden">
-            <WorkspaceSwitcher
-              businesses={businesses}
-              currentBusinessId={
-                currentBusinessId
-              }
-            />
-          </div>
+      businesses.length > 0 && (
+
+        <div className="
+        px-4
+        pb-4
+        lg:hidden
+        ">
+
+          <WorkspaceSwitcher
+            businesses={businesses}
+            currentBusinessId={
+              currentBusinessId
+            }
+          />
+
+        </div>
+
+      )}
+
+
+
+      {/* Mobile quick actions */}
+
+      <div className="
+      flex
+      gap-2
+      px-4
+      pb-4
+      md:hidden
+      ">
+
+
+        <Link
+          href="/chat"
+          className="
+          flex-1
+          rounded-xl
+          border
+          border-cyan-400/20
+          bg-cyan-400/10
+          py-2
+          text-center
+          text-xs
+          font-bold
+          text-cyan-200
+          "
+        >
+
+          <span className="
+          inline-flex
+          items-center
+          gap-2
+          ">
+            <Bot size={14}/>
+            AI Chat
+          </span>
+
+        </Link>
+
+
+
+        {isAdmin && (
+
+          <Link
+            href="/admin"
+            className="
+            flex-1
+            rounded-xl
+            border
+            border-purple-400/20
+            bg-purple-400/10
+            py-2
+            text-center
+            text-xs
+            font-bold
+            text-purple-200
+            "
+          >
+
+            <span className="
+            inline-flex
+            items-center
+            gap-2
+            ">
+              <ShieldCheck size={14}/>
+              Admin
+            </span>
+
+
+          </Link>
+
         )}
+
+
+      </div>
+
+
     </header>
+
   )
 }
