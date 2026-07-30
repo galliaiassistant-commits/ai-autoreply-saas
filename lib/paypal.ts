@@ -70,3 +70,40 @@ export async function getPayPalSubscription(
 
   return response.json()
 }
+
+export async function cancelPayPalSubscription(
+  subscriptionId: string
+) {
+  const accessToken = await getPayPalAccessToken()
+
+  const response = await fetch(
+    `${paypalBaseUrl}/v1/billing/subscriptions/${subscriptionId}/cancel`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        reason:
+          "Customer requested cancellation",
+      }),
+      cache: "no-store",
+    }
+  )
+
+  if (!response.ok) {
+    const text = await response.text()
+
+    console.error(
+      "PAYPAL CANCEL ERROR:",
+      text
+    )
+
+    throw new Error(
+      "Could not cancel PayPal subscription"
+    )
+  }
+
+  return true
+}

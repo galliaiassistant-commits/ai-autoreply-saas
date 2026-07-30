@@ -353,15 +353,19 @@ export default async function IntegrationsPage({
           </div>
 
           <Link
-            href="/dashboard/integrations/whatsapp"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-black transition hover:bg-slate-200"
-          >
-            {whatsappConnected
-              ? "Manage WhatsApp"
-              : "Connect WhatsApp"}
+  href={
+    whatsappConnected
+      ? "/dashboard/integrations/whatsapp"
+      : "/dashboard/integrations/whatsapp/manual"
+  }
+  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-black transition hover:bg-slate-200"
+>
+  {whatsappConnected
+    ? "Manage WhatsApp"
+    : "Setup WhatsApp"}
 
-            <ArrowRight size={18} />
-          </Link>
+  <ArrowRight size={18} />
+</Link>
         </div>
       </section>
 

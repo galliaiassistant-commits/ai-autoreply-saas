@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { getCurrentBusiness } from "@/lib/auth"
 import { PageHeader } from "@/components/dashboard/PageHeader"
 import PayPalSubscriptionButton from "./PayPalSubscriptionButton"
+import CancelSubscriptionButton from "./CancelSubscriptionButton"
 import {
   CreditCard,
   ShieldCheck,
@@ -339,12 +340,16 @@ export default async function BillingPage({
               selected={selectedPlan === "starter"}
               highlighted={selectedPlan === "starter"}
             >
-              <PayPalSubscriptionButton
-                plan="starter"
-                planId={starterPlanId}
-                clientId={paypalClientId}
-                active={plan === "starter" && isActive}
-              />
+              {plan === "starter" && isActive ? (
+  <CancelSubscriptionButton />
+) : (
+  <PayPalSubscriptionButton
+    plan="starter"
+    planId={starterPlanId}
+    clientId={paypalClientId}
+    active={false}
+  />
+)}
             </PlanCard>
 
             <PlanCard
@@ -366,12 +371,16 @@ export default async function BillingPage({
                   : true
               }
             >
-              <PayPalSubscriptionButton
-                plan="pro"
-                planId={proPlanId}
-                clientId={paypalClientId}
-                active={plan === "pro" && isActive}
-              />
+              {plan === "pro" && isActive ? (
+  <CancelSubscriptionButton />
+) : (
+  <PayPalSubscriptionButton
+    plan="pro"
+    planId={proPlanId}
+    clientId={paypalClientId}
+    active={false}
+  />
+)}
             </PlanCard>
 
             <PlanCard
@@ -389,12 +398,16 @@ export default async function BillingPage({
               selected={selectedPlan === "business"}
               highlighted={selectedPlan === "business"}
             >
-              <PayPalSubscriptionButton
-                plan="business"
-                planId={businessPlanId}
-                clientId={paypalClientId}
-                active={plan === "business" && isActive}
-              />
+              {plan === "business" && isActive ? (
+              <CancelSubscriptionButton />
+              ) : (
+  <PayPalSubscriptionButton
+    plan="business"
+    planId={businessPlanId}
+    clientId={paypalClientId}
+    active={false}
+  />
+              )}
             </PlanCard>
           </div>
         </section>

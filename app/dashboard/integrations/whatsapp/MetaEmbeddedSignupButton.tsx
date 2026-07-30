@@ -192,7 +192,7 @@ export default function MetaEmbeddedSignupButton({
     const sessionData = signupDataRef.current
 
     const response = await fetch(
-      "/api/meta/whatsapp/connect",
+  "/api/meta/whatsapp",
       {
         method: "POST",
         headers: {

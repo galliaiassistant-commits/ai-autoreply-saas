@@ -416,6 +416,7 @@ async function getBusinessServicesText(businessId: string) {
     console.log("CUSTOMER ID:", customer.id)
 
     async function finish(replyText: string) {
+
       const safeReply =
         replyText?.trim() ||
         "Sorry, I could not generate a reply. Please try again."
@@ -1046,9 +1047,20 @@ function detectUserAction(userText: string) {
     return "greeting"
   }
 
-  if (lowerText.includes("thank")) {
-    return "thank_you"
-  }
+
+  if (
+  lowerText === "no thanks" ||
+  lowerText === "no thank you"
+) {
+  return "general_chat"
+}
+  if (
+  lowerText.includes("thank you") ||
+  lowerText.includes("thanks") ||
+  lowerText === "thank"
+) {
+  return "thank_you"
+}
 
   if (lowerText.includes("bye")) {
     return "goodbye"
