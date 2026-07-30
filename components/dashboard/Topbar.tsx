@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Menu,
   ShieldCheck,
-  X,
 } from "lucide-react"
 import AccountMenu from "@/components/dashboard/AccountMenu"
 import NotificationsMenu from "@/components/dashboard/NotificationsMenu"
@@ -40,21 +39,29 @@ export function Topbar({
 
     async function checkAdmin() {
       try {
-        const response = await fetch("/api/admin/status", {
-          cache: "no-store",
-        })
+        const response = await fetch(
+          "/api/admin/status",
+          {
+            cache: "no-store",
+          }
+        )
 
         if (!response.ok) return
 
-        const data = (await response.json()) as {
-          isAdmin?: boolean
-        }
+        const data =
+          (await response.json()) as {
+            isAdmin?: boolean
+          }
 
         if (active) {
-          setIsAdmin(data.isAdmin === true)
+          setIsAdmin(
+            data.isAdmin === true
+          )
         }
       } catch {
-        if (active) setIsAdmin(false)
+        if (active) {
+          setIsAdmin(false)
+        }
       }
     }
 
@@ -66,37 +73,53 @@ export function Topbar({
   }, [])
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/80 px-4 py-4 backdrop-blur-xl sm:px-6">
+    <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/80 px-4 py-3 backdrop-blur-xl sm:px-6">
       <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-4">
+        <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-800 bg-slate-900 text-slate-300 transition hover:bg-slate-800"
+            onClick={() =>
+              setSidebarOpen(!sidebarOpen)
+            }
+            aria-label={
+              sidebarOpen
+                ? "Close sidebar"
+                : "Open sidebar"
+            }
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-800 bg-slate-900 text-slate-300 transition hover:bg-slate-800"
           >
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            <Menu size={20} />
           </button>
 
           <div className="hidden md:block">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-600">
               Jhyro AI
             </p>
+
             <h1 className="text-xl font-bold text-white">
               Business Dashboard
             </h1>
           </div>
+
+          <div className="md:hidden">
+            <p className="text-sm font-bold text-white">
+              Jhyro AI
+            </p>
+          </div>
         </div>
 
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          {canManageWorkspaces && businesses.length > 0 && (
-            <div className="hidden sm:block">
-              <WorkspaceSwitcher
-                businesses={businesses}
-                currentBusinessId={currentBusinessId}
-              />
-            </div>
-          )}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {canManageWorkspaces &&
+            businesses.length > 0 && (
+              <div className="hidden lg:block">
+                <WorkspaceSwitcher
+                  businesses={businesses}
+                  currentBusinessId={
+                    currentBusinessId
+                  }
+                />
+              </div>
+            )}
 
           <Link
             href="/chat"
@@ -121,42 +144,28 @@ export function Topbar({
           <Link
             href="/dashboard"
             title="Business Dashboard"
-            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 transition hover:bg-slate-800 md:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 transition hover:bg-slate-800 md:hidden"
           >
             <LayoutDashboard size={18} />
           </Link>
 
           <NotificationsMenu />
+
           <AccountMenu />
         </div>
       </div>
 
-      {canManageWorkspaces && businesses.length > 0 && (
-        <div className="mt-3 sm:hidden">
-          <WorkspaceSwitcher
-            businesses={businesses}
-            currentBusinessId={currentBusinessId}
-          />
-        </div>
-      )}
-
-      <div className="mt-3 flex gap-2 md:hidden">
-        <Link
-          href="/chat"
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-xs font-semibold text-blue-200"
-        >
-          <Bot size={15} /> AI Chat
-        </Link>
-
-        {isAdmin && (
-          <Link
-            href="/admin"
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-purple-400/20 bg-purple-400/10 px-3 py-2 text-xs font-semibold text-purple-200"
-          >
-            <ShieldCheck size={15} /> Admin
-          </Link>
+      {canManageWorkspaces &&
+        businesses.length > 0 && (
+          <div className="mt-3 hidden sm:block lg:hidden">
+            <WorkspaceSwitcher
+              businesses={businesses}
+              currentBusinessId={
+                currentBusinessId
+              }
+            />
+          </div>
         )}
-      </div>
     </header>
   )
 }

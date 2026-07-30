@@ -22,14 +22,11 @@ type NavigationItem = {
   label: string
   href: string
   icon: string
-  requiredFeature?:
-    PlanFeature
-  minimumPlan?:
-    "Pro" | "Business"
+  requiredFeature?: PlanFeature
+  minimumPlan?: "Pro" | "Business"
 }
 
-const navItems:
-  NavigationItem[] = [
+const navItems: NavigationItem[] = [
   {
     label: "Dashboard",
     href: "/dashboard",
@@ -37,77 +34,63 @@ const navItems:
   },
   {
     label: "Conversations",
-    href:
-      "/dashboard/conversations",
+    href: "/dashboard/conversations",
     icon: "💬",
   },
   {
     label: "Customers",
-    href:
-      "/dashboard/customers",
+    href: "/dashboard/customers",
     icon: "👥",
   },
   {
     label: "Bookings",
-    href:
-      "/dashboard/bookings",
+    href: "/dashboard/bookings",
     icon: "📅",
-    requiredFeature:
-      "appointment_bookings",
+    requiredFeature: "appointment_bookings",
     minimumPlan: "Pro",
   },
   {
     label: "Business",
-    href:
-      "/dashboard/business",
+    href: "/dashboard/business",
     icon: "🏢",
   },
   {
     label: "AI Knowledge",
-    href:
-      "/dashboard/ai/knowledge",
+    href: "/dashboard/ai/knowledge",
     icon: "🧠",
-    requiredFeature:
-      "business_knowledge",
+    requiredFeature: "business_knowledge",
     minimumPlan: "Pro",
   },
   {
     label: "AI Personality",
-    href:
-      "/dashboard/ai/personality",
+    href: "/dashboard/ai/personality",
     icon: "🤖",
   },
   {
     label: "AI Actions",
-    href:
-      "/dashboard/ai/actions",
+    href: "/dashboard/ai/actions",
     icon: "⚡",
-    requiredFeature:
-      "advanced_automation",
+    requiredFeature: "advanced_automation",
     minimumPlan: "Business",
   },
   {
     label: "Analytics",
-    href:
-      "/dashboard/analytics",
+    href: "/dashboard/analytics",
     icon: "📊",
   },
   {
     label: "Integrations",
-    href:
-      "/dashboard/integrations",
+    href: "/dashboard/integrations",
     icon: "🔗",
   },
   {
     label: "Billing",
-    href:
-      "/dashboard/billing",
+    href: "/dashboard/billing",
     icon: "💳",
   },
   {
     label: "Settings",
-    href:
-      "/dashboard/settings",
+    href: "/dashboard/settings",
     icon: "⚙️",
   },
 ]
@@ -117,16 +100,13 @@ export function Sidebar({
   setOpen,
   subscriptionPlan = "free",
 }: SidebarProps) {
-  const pathname =
-    usePathname()
+  const pathname = usePathname()
 
-  const plan =
-    normalizePlan(
-      subscriptionPlan
-    )
+  const plan = normalizePlan(
+    subscriptionPlan
+  )
 
-  const planLabel =
-    PLAN_LABELS[plan]
+  const planLabel = PLAN_LABELS[plan]
 
   function hasFeature(
     feature?: PlanFeature
@@ -155,10 +135,10 @@ export function Sidebar({
       )}
 
       <aside
-        className={`fixed left-0 top-0 z-40 h-screen w-72 border-r border-gray-800 bg-gray-950 text-white transition-transform duration-300 ${
+        className={`fixed left-0 top-0 z-40 h-screen w-64 border-r border-gray-800 bg-gray-950 text-white transition-transform duration-300 ${
           open
             ? "translate-x-0"
-            : "-translate-x-full"
+            : "-translate-x-full md:translate-x-0"
         }`}
       >
         <div className="border-b border-gray-800 p-6">
@@ -185,14 +165,13 @@ export function Sidebar({
               onClick={() =>
                 setOpen(false)
               }
-              className="rounded-xl px-3 py-2 text-gray-400 hover:bg-gray-900 hover:text-white"
+              className="rounded-xl px-3 py-2 text-gray-400 hover:bg-gray-900 hover:text-white md:hidden"
             >
               ✕
             </button>
           </div>
         </div>
-
-        <nav className="h-[calc(100vh-168px)] space-y-1 overflow-y-auto p-4">
+                <nav className="h-[calc(100vh-168px)] space-y-1 overflow-y-auto p-4">
           {navItems.map(
             (item) => {
               const active =
