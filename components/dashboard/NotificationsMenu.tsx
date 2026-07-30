@@ -25,13 +25,11 @@ export default function NotificationsMenu() {
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [readIds, setReadIds] = useState<string[]>([])
 
-  useEffect(() => {
-    loadNotifications()
-  }, [])
+  
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -190,7 +188,19 @@ export default function NotificationsMenu() {
     <div ref={menuRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={async () => {
+  const next = !open
+
+  setOpen(next)
+
+  if (
+    next &&
+    notifications.length === 0 &&
+    !loading
+  ) {
+    await loadNotifications()
+  }
+}}
         className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-800 bg-slate-900 text-slate-300 transition hover:bg-slate-800"
       >
         <Bell size={20} />
@@ -203,7 +213,27 @@ export default function NotificationsMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-3 w-96 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl">
+     <div
+  className="
+    fixed
+    left-4
+    right-4
+    top-20
+    z-50
+    sm:absolute
+    sm:top-auto
+    sm:left-auto
+    sm:right-0
+    sm:mt-3
+    sm:w-96
+    overflow-hidden
+    rounded-2xl
+    border
+    border-slate-800
+    bg-slate-950
+    shadow-2xl
+  "
+>
           <div className="flex items-center justify-between border-b border-slate-800 p-5">
             <div>
               <h3 className="font-bold text-white">
