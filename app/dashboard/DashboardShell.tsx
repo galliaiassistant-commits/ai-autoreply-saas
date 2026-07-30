@@ -7,14 +7,15 @@ import {
   Clock3,
   Lock,
 } from "lucide-react"
-
 import { Sidebar } from "@/components/dashboard/Sidebar"
 import { Topbar } from "@/components/dashboard/Topbar"
 import AuthGuard from "@/components/auth/AuthGuard"
 
 type Workspace = {
   id: string
-  business_name: string | null
+  business_name:
+    | string
+    | null
 }
 
 type DashboardShellProps = {
@@ -22,11 +23,16 @@ type DashboardShellProps = {
   subscriptionPlan?: string
   subscriptionStatus: string
   paymentDueAt: string | null
-  billingGraceEndsAt: string | null
+  billingGraceEndsAt:
+    | string
+    | null
   aiSuspendedAt: string | null
   businesses?: Workspace[]
-  currentBusinessId?: string | null
-  canManageWorkspaces?: boolean
+  currentBusinessId?:
+    | string
+    | null
+  canManageWorkspaces?:
+    | boolean
 }
 
 export default function DashboardShell({
@@ -40,47 +46,77 @@ export default function DashboardShell({
   currentBusinessId = null,
   canManageWorkspaces = false,
 }: DashboardShellProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [
+    sidebarOpen,
+    setSidebarOpen,
+  ] = useState(true)
 
-  const billingState = getBillingState({
-    subscriptionStatus,
-    paymentDueAt,
-    billingGraceEndsAt,
-    aiSuspendedAt,
-  })
+  const billingState =
+    getBillingState({
+      subscriptionStatus,
+      paymentDueAt,
+      billingGraceEndsAt,
+      aiSuspendedAt,
+    })
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-[#050816] text-white">
+      <div className="min-h-screen bg-gray-950 text-white">
         <Sidebar
           open={sidebarOpen}
           setOpen={setSidebarOpen}
-          subscriptionPlan={subscriptionPlan}
+          subscriptionPlan={
+            subscriptionPlan
+          }
         />
 
-        <div className="min-h-screen">
+        <div
+          className={`flex min-h-screen flex-col transition-all duration-300 ${
+            sidebarOpen
+              ? "md:ml-72"
+              : "md:ml-0"
+          }`}
+        >
           <Topbar
-            sidebarOpen={sidebarOpen}
-            setSidebarOpen={setSidebarOpen}
-            businesses={businesses}
-            currentBusinessId={currentBusinessId}
-            canManageWorkspaces={canManageWorkspaces}
+            sidebarOpen={
+              sidebarOpen
+            }
+            setSidebarOpen={
+              setSidebarOpen
+            }
+            businesses={
+              businesses
+            }
+            currentBusinessId={
+              currentBusinessId
+            }
+            canManageWorkspaces={
+              canManageWorkspaces
+            }
           />
 
           {billingState.showBanner && (
             <GlobalBillingBanner
-              suspended={billingState.suspended}
-              daysRemaining={billingState.daysRemaining}
-              paymentDueAt={billingState.paymentDueAt}
-              graceEndsAt={billingState.graceEndsAt}
-              status={billingState.status}
+              suspended={
+                billingState.suspended
+              }
+              daysRemaining={
+                billingState.daysRemaining
+              }
+              paymentDueAt={
+                billingState.paymentDueAt
+              }
+              graceEndsAt={
+                billingState.graceEndsAt
+              }
+              status={
+                billingState.status
+              }
             />
           )}
 
-          <main className="mx-auto w-full max-w-[1800px] p-4 sm:p-6 lg:p-8">
-            <div className="animate-in fade-in duration-500">
-              {children}
-            </div>
+          <main className="flex-1 p-6">
+            {children}
           </main>
 
           <DashboardFooter />
@@ -90,33 +126,38 @@ export default function DashboardShell({
   )
 }
 
-
 function DashboardFooter() {
   return (
-    <footer className="border-t border-slate-800/80 px-4 py-6 sm:px-6 lg:px-8">
+    <footer className="border-t border-slate-800 px-6 py-5">
       <div className="flex flex-col gap-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
         <p>
-          © {new Date().getFullYear()} Jhyro AI. All rights reserved.
+          ©{" "}
+          {new Date().getFullYear()}{" "}
+          Jhyro AI. All rights
+          reserved.
         </p>
 
-        <nav className="flex flex-wrap gap-5">
+        <nav
+          aria-label="Legal"
+          className="flex flex-wrap items-center gap-x-5 gap-y-2"
+        >
           <Link
             href="/privacy"
-            className="hover:text-slate-300 transition"
+            className="transition hover:text-slate-300"
           >
-            Privacy
+            Privacy Policy
           </Link>
 
           <Link
             href="/terms"
-            className="hover:text-slate-300 transition"
+            className="transition hover:text-slate-300"
           >
-            Terms
+            Terms of Service
           </Link>
 
           <Link
             href="/data-deletion"
-            className="hover:text-slate-300 transition"
+            className="transition hover:text-slate-300"
           >
             Data Deletion
           </Link>
@@ -125,6 +166,7 @@ function DashboardFooter() {
     </footer>
   )
 }
+
 function getBillingState({
   subscriptionStatus,
   paymentDueAt,
@@ -133,74 +175,79 @@ function getBillingState({
 }: {
   subscriptionStatus: string
   paymentDueAt: string | null
-  billingGraceEndsAt: string | null
+  billingGraceEndsAt:
+    | string
+    | null
   aiSuspendedAt: string | null
 }) {
   const status =
     subscriptionStatus.toLowerCase()
 
-  const paymentDue =
+  const isPaymentDue =
     status === "payment_due" ||
     status === "past_due"
 
-  const stopped =
+  const isStopped =
     status === "cancelled" ||
     status === "expired" ||
     status === "suspended"
 
   const graceDate =
     billingGraceEndsAt
-      ? new Date(billingGraceEndsAt)
+      ? new Date(
+          billingGraceEndsAt
+        )
       : null
 
-  const graceValid =
+  const graceIsValid =
     Boolean(
       graceDate &&
-      !Number.isNaN(
-        graceDate.getTime()
-      )
+        !Number.isNaN(
+          graceDate.getTime()
+        )
     )
 
-  const graceEnded =
+  const graceHasEnded =
     Boolean(
-      graceValid &&
-      graceDate &&
-      Date.now() >= graceDate.getTime()
+      graceIsValid &&
+        graceDate &&
+        Date.now() >=
+          graceDate.getTime()
     )
 
   const suspended =
     Boolean(aiSuspendedAt) ||
-    stopped ||
-    (paymentDue && graceEnded)
+    isStopped ||
+    (
+      isPaymentDue &&
+      graceHasEnded
+    )
 
-  const day =
-    1000 *
-    60 *
-    60 *
-    24
+  const dayMs =
+    1000 * 60 * 60 * 24
 
   const daysRemaining =
-    graceValid &&
+    graceIsValid &&
     graceDate &&
-    !graceEnded
+    !graceHasEnded
       ? Math.max(
           1,
           Math.ceil(
             (
               graceDate.getTime() -
               Date.now()
-            ) / day
+            ) / dayMs
           )
         )
       : 0
 
   return {
     status,
+    showBanner:
+      isPaymentDue ||
+      suspended,
     suspended,
     daysRemaining,
-    showBanner:
-      paymentDue ||
-      suspended,
     paymentDueAt:
       formatBillingDate(
         paymentDueAt
@@ -211,7 +258,6 @@ function getBillingState({
       ),
   }
 }
-
 
 function GlobalBillingBanner({
   suspended,
@@ -227,52 +273,78 @@ function GlobalBillingBanner({
   status: string
 }) {
   return (
-    <div className="px-4 pt-4 sm:px-6 lg:px-8">
+    <div className="px-6 pt-6">
       <section
         className={
           suspended
-            ? "rounded-3xl border border-red-500/30 bg-red-500/10 p-5"
-            : "rounded-3xl border border-yellow-500/30 bg-yellow-500/10 p-5"
+            ? "rounded-2xl border border-red-500/40 bg-red-500/10 p-5"
+            : "rounded-2xl border border-yellow-500/40 bg-yellow-500/10 p-5"
         }
       >
-        <div className="flex flex-col gap-5 lg:flex-row lg:justify-between">
-          <div className="flex gap-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-start gap-4">
             <div
               className={
                 suspended
-                  ? "rounded-2xl bg-red-500/20 p-3 text-red-400"
-                  : "rounded-2xl bg-yellow-500/20 p-3 text-yellow-400"
+                  ? "rounded-xl bg-red-500/20 p-3 text-red-400"
+                  : "rounded-xl bg-yellow-500/20 p-3 text-yellow-400"
               }
             >
               {suspended ? (
                 <Lock size={22} />
               ) : (
-                <AlertCircle size={22} />
+                <AlertCircle
+                  size={22}
+                />
               )}
             </div>
 
             <div>
-              <h2 className="font-bold">
+              <h2
+                className={
+                  suspended
+                    ? "font-bold text-red-300"
+                    : "font-bold text-yellow-300"
+                }
+              >
                 {suspended
                   ? "Jhyro AI replies are suspended"
                   : "Payment is due"}
               </h2>
 
-              <p className="mt-1 text-sm text-slate-300">
+              <p className="mt-1 text-sm leading-relaxed text-slate-300">
                 {suspended
-                  ? `Subscription status: ${status}`
-                  : `Your payment is overdue. ${daysRemaining} days remaining.`}
+                  ? status ===
+                      "cancelled" ||
+                    status ===
+                      "expired" ||
+                    status ===
+                      "suspended"
+                    ? `Your subscription is ${status}. Renew your PayPal plan to restore automatic replies.`
+                    : "The 7-day grace period has ended. Renew your PayPal subscription to restore automatic WhatsApp replies."
+                  : `Your PayPal payment is overdue. Jhyro AI remains active for ${daysRemaining} more day${
+                      daysRemaining ===
+                      1
+                        ? ""
+                        : "s"
+                    }.`}
               </p>
 
-              <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-400">
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-400">
                 <span className="flex items-center gap-2">
-                  <AlertCircle size={14} />
-                  Due: {paymentDueAt}
+                  <AlertCircle
+                    size={14}
+                  />
+                  Due:{" "}
+                  {paymentDueAt}
                 </span>
 
                 <span className="flex items-center gap-2">
-                  <Clock3 size={14} />
-                  Grace: {graceEndsAt}
+                  <Clock3
+                    size={14}
+                  />
+                  Grace ends:{" "}
+                  {graceEndsAt}
                 </span>
               </div>
             </div>
@@ -280,7 +352,11 @@ function GlobalBillingBanner({
 
           <Link
             href="/dashboard/billing"
-            className="rounded-xl bg-white px-5 py-3 text-center font-bold text-black"
+            className={
+              suspended
+                ? "inline-flex shrink-0 items-center justify-center rounded-xl bg-red-400 px-5 py-3 font-bold text-slate-950 transition hover:bg-red-300"
+                : "inline-flex shrink-0 items-center justify-center rounded-xl bg-yellow-300 px-5 py-3 font-bold text-slate-950 transition hover:bg-yellow-200"
+            }
           >
             Open Billing
           </Link>
@@ -290,11 +366,12 @@ function GlobalBillingBanner({
   )
 }
 
-
 function formatBillingDate(
   value: string | null
 ) {
-  if (!value) return "Not set"
+  if (!value) {
+    return "Not set"
+  }
 
   const date =
     new Date(value)
@@ -312,7 +389,8 @@ function formatBillingDate(
     {
       dateStyle: "medium",
       timeStyle: "short",
-      timeZone: "America/Jamaica",
+      timeZone:
+        "America/Jamaica",
     }
   ).format(date)
 }

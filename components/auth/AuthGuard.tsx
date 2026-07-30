@@ -14,10 +14,12 @@ export default function AuthGuard({
 
   useEffect(() => {
     async function checkUser() {
-      const { data } = await supabase.auth.getUser()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-      if (!data.user) {
-        router.push("/auth/sign-in")
+      if (!session?.user) {
+        router.replace("/auth/sign-in")
         return
       }
 
@@ -30,7 +32,7 @@ export default function AuthGuard({
   if (checking) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
-        Checking account...
+        Loading Jhyro AI...
       </div>
     )
   }

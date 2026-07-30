@@ -1,16 +1,12 @@
-import {
-  redirect,
-} from "next/navigation"
-import {
-  createClient,
-} from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+
+import { createClient } from "@/lib/supabase/server"
 import {
   getCurrentBusiness,
   getCurrentBusinesses,
 } from "@/lib/auth"
-import {
-  businessCanUseFeature,
-} from "@/lib/plans"
+import { businessCanUseFeature } from "@/lib/plans"
+
 import DashboardShell from "./DashboardShell"
 
 export default async function DashboardLayout({
@@ -18,8 +14,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase =
-    await createClient()
+  const supabase = await createClient()
 
   const {
     data: { user },
@@ -81,8 +76,7 @@ export default async function DashboardLayout({
         null
       }
       billingGraceEndsAt={
-        business
-          ?.billing_grace_ends_at ||
+        business?.billing_grace_ends_at ||
         null
       }
       aiSuspendedAt={
@@ -91,7 +85,8 @@ export default async function DashboardLayout({
       }
       businesses={businesses}
       currentBusinessId={
-        business?.id || null
+        business?.id ||
+        null
       }
       canManageWorkspaces={
         canManageWorkspaces
