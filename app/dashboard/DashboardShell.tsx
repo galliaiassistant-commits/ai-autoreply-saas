@@ -40,7 +40,7 @@ export default function DashboardShell({
   currentBusinessId = null,
   canManageWorkspaces = false,
 }: DashboardShellProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const billingState = getBillingState({
     subscriptionStatus,
@@ -58,19 +58,7 @@ export default function DashboardShell({
           subscriptionPlan={subscriptionPlan}
         />
 
-        <div
-  className={`
-    min-h-screen
-    transition-all
-    duration-300
-    ease-in-out
-    ${
-      sidebarOpen
-        ? "lg:pl-72"
-        : "lg:pl-0"
-    }
-  `}
->
+        <div className="min-h-screen">
           <Topbar
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
@@ -137,8 +125,6 @@ function DashboardFooter() {
     </footer>
   )
 }
-
-
 function getBillingState({
   subscriptionStatus,
   paymentDueAt,
@@ -162,12 +148,10 @@ function getBillingState({
     status === "expired" ||
     status === "suspended"
 
-
   const graceDate =
     billingGraceEndsAt
       ? new Date(billingGraceEndsAt)
       : null
-
 
   const graceValid =
     Boolean(
@@ -177,7 +161,6 @@ function getBillingState({
       )
     )
 
-
   const graceEnded =
     Boolean(
       graceValid &&
@@ -185,19 +168,16 @@ function getBillingState({
       Date.now() >= graceDate.getTime()
     )
 
-
   const suspended =
     Boolean(aiSuspendedAt) ||
     stopped ||
     (paymentDue && graceEnded)
-
 
   const day =
     1000 *
     60 *
     60 *
     24
-
 
   const daysRemaining =
     graceValid &&
@@ -209,12 +189,10 @@ function getBillingState({
             (
               graceDate.getTime() -
               Date.now()
-            ) /
-            day
+            ) / day
           )
         )
       : 0
-
 
   return {
     status,
@@ -259,15 +237,17 @@ function GlobalBillingBanner({
       >
         <div className="flex flex-col gap-5 lg:flex-row lg:justify-between">
           <div className="flex gap-4">
-            <div className={
-              suspended
-                ? "rounded-2xl bg-red-500/20 p-3 text-red-400"
-                : "rounded-2xl bg-yellow-500/20 p-3 text-yellow-400"
-            }>
+            <div
+              className={
+                suspended
+                  ? "rounded-2xl bg-red-500/20 p-3 text-red-400"
+                  : "rounded-2xl bg-yellow-500/20 p-3 text-yellow-400"
+              }
+            >
               {suspended ? (
-                <Lock size={22}/>
+                <Lock size={22} />
               ) : (
-                <AlertCircle size={22}/>
+                <AlertCircle size={22} />
               )}
             </div>
 
@@ -286,12 +266,12 @@ function GlobalBillingBanner({
 
               <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-400">
                 <span className="flex items-center gap-2">
-                  <AlertCircle size={14}/>
+                  <AlertCircle size={14} />
                   Due: {paymentDueAt}
                 </span>
 
                 <span className="flex items-center gap-2">
-                  <Clock3 size={14}/>
+                  <Clock3 size={14} />
                   Grace: {graceEndsAt}
                 </span>
               </div>
@@ -330,9 +310,9 @@ function formatBillingDate(
   return new Intl.DateTimeFormat(
     "en-JM",
     {
-      dateStyle:"medium",
-      timeStyle:"short",
-      timeZone:"America/Jamaica",
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "America/Jamaica",
     }
   ).format(date)
 }
