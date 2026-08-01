@@ -1,9 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Bot,
+  ChevronDown,
+  Globe,
   LayoutDashboard,
   Menu,
   ShieldCheck,
@@ -36,21 +38,22 @@ export function Topbar({
   currentBusinessId = null,
   canManageWorkspaces = false,
 }: TopbarProps) {
-  const [isAdmin, setIsAdmin] =
-    useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     let active = true
 
     async function checkAdmin() {
       try {
-        const response =
-          await fetch(
-            "/api/admin/status",
-            {
-              cache: "no-store",
-            }
-          )
+        const response = await fetch(
+          "/api/admin/status",
+          {
+            cache: "no-store",
+          }
+        )
 
         if (!response.ok) {
           return
@@ -80,16 +83,42 @@ export function Topbar({
     }
   }, [])
 
+  useEffect(() => {
+    function handleClickOutside(
+      event: MouseEvent
+    ) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(
+          event.target as Node
+        )
+      ) {
+        setMenuOpen(false)
+      }
+    }
+
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside
+    )
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      )
+    }
+  }, [])
+
   return (
     <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/80 px-4 py-4 backdrop-blur-xl sm:px-6">
       <div className="flex items-center justify-between gap-4">
+
         <div className="flex min-w-0 items-center gap-4">
           <button
             type="button"
             onClick={() =>
-              setSidebarOpen(
-                !sidebarOpen
-              )
+              setSidebarOpen(!sidebarOpen)
             }
             aria-label={
               sidebarOpen
@@ -116,14 +145,14 @@ export function Topbar({
           </div>
         </div>
 
+
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+
           {canManageWorkspaces &&
             businesses.length > 0 && (
               <div className="hidden sm:block">
                 <WorkspaceSwitcher
-                  businesses={
-                    businesses
-                  }
+                  businesses={businesses}
                   currentBusinessId={
                     currentBusinessId
                   }
@@ -131,27 +160,110 @@ export function Topbar({
               </div>
             )}
 
-          <Link
-            href="/chat"
-            title="Open Jhyro AI Chat"
-            className="hidden h-11 items-center gap-2 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 text-sm font-semibold text-blue-200 transition hover:bg-blue-400/20 md:inline-flex"
-          >
-            <Bot size={17} />
-            AI Chat
-          </Link>
 
-          {isAdmin && (
-            <Link
-              href="/admin"
-              title="Open Admin Dashboard"
-              className="hidden h-11 items-center gap-2 rounded-xl border border-purple-400/20 bg-purple-400/10 px-3 text-sm font-semibold text-purple-200 transition hover:bg-purple-400/20 md:inline-flex"
+          <div
+            ref={menuRef}
+            className="relative"
+          >
+            <button
+              type="button"
+              onClick={() =>
+                setMenuOpen(
+                  !menuOpen
+                )
+              }
+              className="flex h-11 items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
             >
-              <ShieldCheck
-                size={17}
+              Jhyro
+              <ChevronDown
+                size={16}
+                className={
+                  menuOpen
+                    ? "rotate-180 transition"
+                    : "transition"
+                }
               />
-              Admin
-            </Link>
-          )}
+            </button>
+
+
+            {menuOpen && (
+              <div className="absolute right-0 z-50 mt-3 w-64 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl">
+
+                <Link
+                  href="https://jhyroai.com"
+                  target="_blank"
+                  onClick={() =>
+                    setMenuOpen(false)
+                  }
+                  className="flex items-center gap-3 px-4 py-3 transition hover:bg-slate-900"
+                >
+                  <Globe
+                    size={18}
+                    className="text-green-400"
+                  />
+
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      Visit Website
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Open Jhyro AI website
+                    </p>
+                  </div>
+                </Link>
+
+
+                <Link
+                  href="/chat"
+                  onClick={() =>
+                    setMenuOpen(false)
+                  }
+                  className="flex items-center gap-3 px-4 py-3 transition hover:bg-slate-900"
+                >
+                  <Bot
+                    size={18}
+                    className="text-blue-400"
+                  />
+
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      AI Chat
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Test your AI assistant
+                    </p>
+                  </div>
+                </Link>
+
+
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    onClick={() =>
+                      setMenuOpen(false)
+                    }
+                    className="flex items-center gap-3 px-4 py-3 transition hover:bg-slate-900"
+                  >
+                    <ShieldCheck
+                      size={18}
+                      className="text-purple-400"
+                    />
+
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        Admin Dashboard
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Manage system
+                      </p>
+                    </div>
+                  </Link>
+                )}
+
+              </div>
+            )}
+          </div>
+
 
           <Link
             href="/dashboard"
@@ -166,16 +278,16 @@ export function Topbar({
           <NotificationsMenu />
 
           <AccountMenu />
+
         </div>
       </div>
+
 
       {canManageWorkspaces &&
         businesses.length > 0 && (
           <div className="mt-3 sm:hidden">
             <WorkspaceSwitcher
-              businesses={
-                businesses
-              }
+              businesses={businesses}
               currentBusinessId={
                 currentBusinessId
               }
@@ -183,27 +295,6 @@ export function Topbar({
           </div>
         )}
 
-      <div className="mt-3 flex gap-2 md:hidden">
-        <Link
-          href="/chat"
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-xs font-semibold text-blue-200"
-        >
-          <Bot size={15} />
-          AI Chat
-        </Link>
-
-        {isAdmin && (
-          <Link
-            href="/admin"
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-purple-400/20 bg-purple-400/10 px-3 py-2 text-xs font-semibold text-purple-200"
-          >
-            <ShieldCheck
-              size={15}
-            />
-            Admin
-          </Link>
-        )}
-      </div>
     </header>
   )
 }

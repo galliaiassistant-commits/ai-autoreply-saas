@@ -64,12 +64,17 @@ export default function PayPalSubscriptionButton({
   planId,
   clientId,
   active,
+  upgrade,
+  currentSubscriptionId,
 }: {
   plan: "starter" | "pro" | "business"
   planId?: string
   clientId?: string
   active?: boolean
+  upgrade?: boolean
+  currentSubscriptionId?: string | null
 }) {
+
   const router = useRouter()
   const reactId = useId()
 
@@ -116,69 +121,126 @@ export default function PayPalSubscriptionButton({
           throw new Error("PayPal buttons are unavailable.")
         }
 
-        await window.paypal
-          .Buttons({
-            style: {
-              shape: "rect",
-              color: "gold",
-              layout: "vertical",
-              label: "subscribe",
-            },
+        window.paypal
+  .Buttons({
+    style: {
+      shape: "rect",
+      color: "gold",
+      layout: "vertical",
+      label: "subscribe",
+    },
 
-            createSubscription(
-              _data: unknown,
-              actions: any
-            ) {
-              return actions.subscription.create({
-                plan_id: planId,
-              })
-            },
+    async onClick() {
+      if (upgrade && currentSubscriptionId) {
+        try {
+          const response = await fetch(
+            "/api/paypal/subscription/update",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                plan,
+              }),
+            }
+          )
 
-            async onApprove(data: any) {
-              const subscriptionId = data.subscriptionID
+          const result = await response.json()
 
-              if (!subscriptionId) {
-                setError("Missing PayPal subscription ID.")
-                return
-              }
+          if (!response.ok) {
+            throw new Error(
+              result.error ||
+              "Could not update subscription"
+            )
+          }
 
-              const response = await fetch(
-                "/api/paypal/subscription",
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({
-                    subscriptionId,
-                    plan,
-                  }),
-                }
-              )
+          setCompleted(true)
+          router.refresh()
 
-              const result = await response.json()
+          return false
+        } catch (error) {
+          console.error(
+            "UPGRADE ERROR:",
+            error
+          )
 
-              if (!response.ok) {
-                throw new Error(
-                  result.error ||
-                    "Could not save PayPal subscription."
-                )
-              }
+          setError(
+            "Could not upgrade subscription."
+          )
 
-              setCompleted(true)
-              router.refresh()
-            },
+          return false
+        }
+      }
 
-            onCancel() {
-              setError("Subscription was canceled.")
-            },
+      return true
+    },
 
-            onError(err: unknown) {
-              console.error("PAYPAL BUTTON ERROR:", err)
-              setError("PayPal checkout failed. Try again.")
-            },
-          })
-          .render(`#${containerId}`)
+    createSubscription(
+      _data: unknown,
+      actions: any
+    ) {
+      return actions.subscription.create({
+        plan_id: planId,
+      })
+    },
+
+    async onApprove(data: any) {
+      const subscriptionId =
+        data.subscriptionID
+
+      if (!subscriptionId) {
+        setError(
+          "Missing PayPal subscription ID."
+        )
+        return
+      }
+
+      const response = await fetch(
+        "/api/paypal/subscription",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            subscriptionId,
+            plan,
+          }),
+        }
+      )
+
+      const result =
+        await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          result.error ||
+          "Could not save PayPal subscription."
+        )
+      }
+
+      setCompleted(true)
+      router.refresh()
+    },
+
+    onCancel() {
+      setError(
+        "Subscription was canceled."
+      )
+    },
+
+    onError(err: unknown) {
+      console.error(
+        "PAYPAL BUTTON ERROR:",
+        err
+      )
+
+      setError(
+        "PayPal checkout failed. Try again."
+      )
+    },
+  })
 
         if (!canceled) {
           setLoading(false)
@@ -205,7 +267,16 @@ export default function PayPalSubscriptionButton({
         container.innerHTML = ""
       }
     }
-  }, [active, clientId, containerId, plan, planId, router])
+  }, [
+  active,
+  clientId,
+  containerId,
+  plan,
+  planId,
+  router,
+  upgrade,
+  currentSubscriptionId,
+])
 
   if (active) {
     return (

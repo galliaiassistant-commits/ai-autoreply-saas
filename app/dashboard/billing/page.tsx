@@ -113,6 +113,23 @@ export default async function BillingPage({
           ? "Business"
           : "Free"
 
+const planRank = {
+  free: 0,
+  starter: 1,
+  pro: 2,
+  business: 3,
+}
+
+const currentPlanRank =
+  planRank[plan as keyof typeof planRank] || 0
+
+function canUpgradeTo(targetPlan: Plan) {
+  return (
+    planRank[targetPlan] >
+    currentPlanRank
+  )
+}
+
   const subscriptionStatus =
     business.subscription_status ||
     business.billing_status ||
@@ -327,7 +344,7 @@ export default async function BillingPage({
           <div className="mt-6 grid gap-5 lg:grid-cols-3">
             <PlanCard
               name="Starter"
-              price="$29.00"
+              price="$29.99"
               description="For small businesses getting started with AI customer support."
               features={[
                 "1 business workspace",
@@ -344,11 +361,15 @@ export default async function BillingPage({
   <CancelSubscriptionButton />
 ) : (
   <PayPalSubscriptionButton
-    plan="starter"
-    planId={starterPlanId}
-    clientId={paypalClientId}
-    active={false}
-  />
+  plan="starter"
+  planId={starterPlanId}
+  clientId={paypalClientId}
+  active={plan === "starter" && isActive}
+  upgrade={isActive}
+  currentSubscriptionId={
+    business.paypal_subscription_id
+  }
+/>
 )}
             </PlanCard>
 
@@ -375,11 +396,15 @@ export default async function BillingPage({
   <CancelSubscriptionButton />
 ) : (
   <PayPalSubscriptionButton
-    plan="pro"
-    planId={proPlanId}
-    clientId={paypalClientId}
-    active={false}
-  />
+  plan="pro"
+  planId={proPlanId}
+  clientId={paypalClientId}
+  active={plan === "pro" && isActive}
+  upgrade={isActive}
+  currentSubscriptionId={
+    business.paypal_subscription_id
+  }
+/>
 )}
             </PlanCard>
 

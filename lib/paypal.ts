@@ -107,3 +107,40 @@ export async function cancelPayPalSubscription(
 
   return true
 }
+
+export async function updatePayPalSubscription(
+  subscriptionId: string,
+  planId: string
+) {
+  const accessToken = await getPayPalAccessToken()
+
+  const response = await fetch(
+    `${paypalBaseUrl}/v1/billing/subscriptions/${subscriptionId}/revise`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        plan_id: planId,
+      }),
+      cache: "no-store",
+    }
+  )
+
+  if (!response.ok) {
+    const text = await response.text()
+
+    console.error(
+      "PAYPAL UPDATE SUBSCRIPTION ERROR:",
+      text
+    )
+
+    throw new Error(
+      "Could not update PayPal subscription"
+    )
+  }
+
+  return response.json()
+}
